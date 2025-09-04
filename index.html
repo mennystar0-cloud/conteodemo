@@ -4,6 +4,10 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>CKLASS — Cíclico (Catálogo + Existencias + Escaneo + Reporte + Folios)</title>
+
+<!-- SheetJS para leer .xlsx -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js"></script>
+
 <style>
   :root{--b:#0f172a;--m:#f6f7f9;--bd:#d0d7de;--mut:#6b7280;--pri:#2563eb;--ok:#047857;--err:#b91c1c}
   *{box-sizing:border-box} body{font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;background:var(--m);color:var(--b);margin:0}
@@ -33,9 +37,6 @@
   video{max-width:100%;border-radius:.6rem;border:1px solid var(--bd)}
   .badge{display:inline-flex;gap:.4rem;align-items:center;padding:.2rem .5rem;border-radius:.5rem;background:#eef2ff;color:#1d4ed8;border:1px solid #c7d2fe}
 </style>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js"></script>
-
-  
 </head>
 <body>
 <div class="wrap">
@@ -56,7 +57,7 @@
       <button id="btnBust" class="btn" title="Evita caché agregando ?v=timestamp">Forzar recarga</button>
       <span id="status" class="pill">—</span>
     </div>
-    <label class="muted" style="display:block;margin-bottom:.25rem">Ruta</label>
+    <label class="muted" style="display:block;margin-bottom:.25rem">Ruta (CSV o XLSX)</label>
     <input id="path" value="./static/catalogo-master.csv" />
     <div class="row" style="margin-top:.5rem;font-size:.92rem">
       <span class="badge"><b>HTTP</b> <span id="http">—</span></span>
@@ -182,7 +183,7 @@
       <button id="btnGenFolio" class="btn pri">Generar folio</button>
       <span id="folioBadge" class="pill">Sin folio</span>
     </div>
-    <p class="muted">El folio y el acumulado de escaneos se guardan localmente. Más adelante conectamos Firestore. <!-- TODO Firebase --></p>
+    <p class="muted">El folio y el acumulado se guardan localmente. Más adelante conectamos Firestore. <!-- TODO Firebase --></p>
 
     <div class="card">
       <h3>Historial local</h3>
@@ -209,7 +210,7 @@ document.querySelectorAll('.tab').forEach(t=>{
   };
 });
 
-/* ========= CSV utils ========= */
+/* ========= CSV helpers ========= */
 function detectCSV(text){
   const lines = text.split(/\r\n|\n|\r/);
   const first = lines[0] || '';
@@ -232,7 +233,7 @@ function splitCSV(line, d){
 }
 async function fetchDecoded(url){
   const resp = await fetch(url, { cache:'no-store' });
-  const buf = await resp.arrayBuffer();
+  const buf = await resp.arrayBuffer(); $('http').textContent = resp.status;
   const b = new Uint8Array(buf);
   let enc='utf-8';
   if (b.length>=2){
@@ -245,23 +246,22 @@ async function fetchDecoded(url){
     if (zeros > b.length/10) enc='utf-16le';
   }
   let text; try{ text=new TextDecoder(enc).decode(buf); }catch{ enc='windows-1252'; text=new TextDecoder(enc).decode(buf); }
-  $('http').textContent = resp.status;
   $('enc').textContent  = enc.toUpperCase();
   if (!resp.ok) throw new Error('HTTP '+resp.status);
   return text;
 }
-/* ===== XLSX helpers ===== */
-const isXLSX = (u) => /\.xlsx?(\?|$)/i.test(u);
 
+/* ========= XLSX helpers ========= */
+const isXLSX = (u) => /\.xlsx?(\?|$)/i.test(u);
 async function loadXLSX(url) {
   const resp = await fetch(url, { cache: 'no-store' });
   if (!resp.ok) throw new Error('HTTP ' + resp.status);
+  $('http').textContent = resp.status; $('enc').textContent = 'XLSX';
   const ab = await resp.arrayBuffer();
-  const wb = XLSX.read(ab, { type: 'array' });           // 1a hoja
+  const wb = XLSX.read(ab, { type: 'array' });
   const sh = wb.Sheets[wb.SheetNames[0]];
-  // rows: matriz [fila][col], sin perder ceros a la izquierda (raw:false), defval ''
   const rows = XLSX.utils.sheet_to_json(sh, { header: 1, raw: false, defval: '' });
-  return rows; // primera fila son headers
+  return rows; // [fila][col]; rows[0] headers
 }
 
 /* ========= Catálogo (estado) ========= */
@@ -306,6 +306,26 @@ function showMapper(headersRaw, idx){
 }
 function hideMapper(){ $('mapperCard').style.display='none'; }
 
+/* ========= Construcción de índices ========= */
+function addIndexRow(cols, idx){
+  const mod   = String(cols[idx.MOD]  ??'').trim();
+  const color = String(cols[idx.COLOR]??'').trim();
+  const talla = String(cols[idx.TALLA]??'').trim();
+  const bc    = idx.BC>=0 ? String(cols[idx.BC]??'').trim() : '';
+  if(!mod||!color||!talla) return;
+  const k=key3(mod,color,talla);
+  if (bc) Catalog.byBarcode.set(bc,{mod,color,talla});
+  if (!Catalog.byKey.has(k)) Catalog.byKey.set(k, bc || '');
+}
+function buildIndexesFromCSV(lines, d, idx){
+  Catalog.byBarcode.clear(); Catalog.byKey.clear();
+  for(let i=1;i<lines.length;i++){ addIndexRow(splitCSV(lines[i], d), idx); }
+}
+function buildIndexesFromRows(rows, idx){
+  Catalog.byBarcode.clear(); Catalog.byKey.clear();
+  for(let i=1;i<rows.length;i++){ addIndexRow(rows[i]||[], idx); }
+}
+
 /* ========= Cargar catálogo (CSV o XLSX) ========= */
 async function cargarCatalogo(){
   const url = $('path').value.trim();
@@ -318,28 +338,22 @@ async function cargarCatalogo(){
     let headersRaw=[], headersNorm=[], idx, rowCount=0, sampleText='', sepLabel='';
 
     if (isXLSX(url)) {
-      // ----- XLSX -----
       const rows = await loadXLSX(url);
       if (!rows.length) throw new Error('Catálogo vacío (xlsx)');
       headersRaw  = (rows[0]||[]).map(x=>String(x??''));
       headersNorm = headersRaw.map(h=>norm(h));
-      idx = {
-        MOD:  findIdx(headersNorm,'MOD'),
-        COLOR:findIdx(headersNorm,'COLOR'),
-        TALLA:findIdx(headersNorm,'TALLA'),
-        BC:   findIdx(headersNorm,'BC'),
-      };
+      idx = { MOD:findIdx(headersNorm,'MOD'), COLOR:findIdx(headersNorm,'COLOR'),
+              TALLA:findIdx(headersNorm,'TALLA'), BC:findIdx(headersNorm,'BC') };
       rowCount = Math.max(0, rows.length - 1);
       sampleText = rows.slice(1, Math.min(rows.length, 11))
                        .map(r => r.map(v=>String(v??'')).join(','))
                        .join('\n');
       sepLabel = 'XLSX';
-      // si ya tenemos columnas, construir índices
-      if (idx.MOD>=0 && idx.COLOR>=0 && idx.TALLA>=0) buildIndexesFromRows(rows, idx);
-      else showMapper(headersRaw, idx);
+      if (idx.MOD>=0 && idx.COLOR>=0 && idx.TALLA>=0) {
+        buildIndexesFromRows(rows, idx); hideMapper();
+      } else { showMapper(headersRaw, idx); }
 
     } else {
-      // ----- CSV -----
       let text = await fetchDecoded(url);
       if (text.charCodeAt(0)===0xFEFF) text = text.slice(1);
       const det = detectCSV(text);
@@ -353,19 +367,15 @@ async function cargarCatalogo(){
       const d = det.delim;
       headersRaw  = splitCSV(lines[0], d);
       headersNorm = headersRaw.map(h=>norm(h));
-      idx = {
-        MOD:  findIdx(headersNorm,'MOD'),
-        COLOR:findIdx(headersNorm,'COLOR'),
-        TALLA:findIdx(headersNorm,'TALLA'),
-        BC:   findIdx(headersNorm,'BC'),
-      };
+      idx = { MOD:findIdx(headersNorm,'MOD'), COLOR:findIdx(headersNorm,'COLOR'),
+              TALLA:findIdx(headersNorm,'TALLA'), BC:findIdx(headersNorm,'BC') };
       rowCount = Math.max(0, lines.length - 1);
       sampleText = lines.slice(1, Math.min(lines.length, 11)).join('\n');
-      if (idx.MOD>=0 && idx.COLOR>=0 && idx.TALLA>=0) buildIndexesFromCSV(lines, d, idx);
-      else showMapper(headersRaw, idx);
+      if (idx.MOD>=0 && idx.COLOR>=0 && idx.TALLA>=0) {
+        buildIndexesFromCSV(lines, d, idx); hideMapper();
+      } else { showMapper(headersRaw, idx); }
     }
 
-    // Actualiza UI común
     Catalog.sep = sepLabel;
     Catalog.headersRaw  = headersRaw;
     Catalog.headersNorm = headersNorm;
@@ -382,7 +392,6 @@ async function cargarCatalogo(){
       $('status').innerHTML = '<span class="ok">Cargado. Falta mapear columnas.</span>';
     } else {
       $('status').innerHTML = '<span class="ok">Cargado correctamente</span>';
-      hideMapper();
       $('btnProcesar').disabled=false;
     }
 
@@ -392,66 +401,25 @@ async function cargarCatalogo(){
     alert('Error cargando catálogo: '+(e?.message||e));
   }
 }
-    // Construir índices (en streaming ligero)
-    if (idx.MOD<0 || idx.COLOR<0 || idx.TALLA<0){
-      $('status').innerHTML='<span class="ok">Cargado. Falta mapear columnas.</span>';
-      showMapper(headersRaw, idx);
-    } else {
-      buildIndexes(lines, d, idx);
-      $('status').innerHTML='<span class="ok">Cargado correctamente</span>';
-      hideMapper();
-      $('btnProcesar').disabled=false;
-    }
-  }catch(e){
-    $('status').innerHTML='<span class="err">❌ '+(e?.message||e)+'</span>';
-    $('btnProcesar').disabled=true; hideMapper();
-    alert('Error cargando catálogo: '+(e?.message||e));
-  }
-}
-/* ========= Construir índices ========= */
-// CSV: lines (string[]), con encabezado en lines[0]
-function buildIndexesFromCSV(lines, d, idx){
-  Catalog.byBarcode.clear(); Catalog.byKey.clear();
-  for(let i=1;i<lines.length;i++){
-    const cols=splitCSV(lines[i], d);
-    addIndexRow(cols, idx);
-  }
-}
-// XLSX: rows (any[][]), con encabezado en rows[0]
-function buildIndexesFromRows(rows, idx){
-  Catalog.byBarcode.clear(); Catalog.byKey.clear();
-  for(let i=1;i<rows.length;i++){
-    const cols = rows[i] || [];
-    addIndexRow(cols, idx);
-  }
-}
-// Común: inserta en mapas a partir de un arreglo de columnas
-function addIndexRow(cols, idx){
-  const mod   = String(cols[idx.MOD]  ??'').trim();
-  const color = String(cols[idx.COLOR]??'').trim();
-  const talla = String(cols[idx.TALLA]??'').trim();
-  const bc    = idx.BC>=0 ? String(cols[idx.BC]??'').trim() : '';
-  if(!mod||!color||!talla) return;
-  const k=key3(mod,color,talla);
-  if (bc) Catalog.byBarcode.set(bc,{mod,color,talla});
-  if (!Catalog.byKey.has(k)) Catalog.byKey.set(k, bc || '');
-}
 
-/* mapper manual */
-$('btnConfirmMap').onclick=()=>{
-  Catalog.idx.MOD=Number($('selMOD').value);
-  Catalog.idx.COLOR=Number($('selCOLOR').value);
-  Catalog.idx.TALLA=Number($('selTALLA').value);
-  Catalog.idx.BC=Number($('selBC').value);
+/* mapper manual (sirve para CSV/XLSX) */
+$('btnConfirmMap').onclick = () => {
+  Catalog.idx.MOD  = Number($('selMOD').value);
+  Catalog.idx.COLOR= Number($('selCOLOR').value);
+  Catalog.idx.TALLA= Number($('selTALLA').value);
+  Catalog.idx.BC   = Number($('selBC').value);
   $('mapStatus').textContent=`Listo: MOD=${Catalog.idx.MOD}, COLOR=${Catalog.idx.COLOR}, TALLA=${Catalog.idx.TALLA}, BC=${Catalog.idx.BC}`;
-  $('status').innerHTML='<span class="ok">OK (mapeo manual)</span>';
-  // reconstruir índices con las nuevas posiciones
-  const url=$('path').value.trim();
-  fetchDecoded(url).then(text=>{
-    const det=detectCSV(text); let lines=det.lines; if(det.dropFirst) lines=lines.slice(1);
-    buildIndexes(lines, det.delim, Catalog.idx);
-  });
-  $('btnProcesar').disabled=false;
+  $('status').innerHTML = '<span class="ok">OK (mapeo manual)</span>';
+  const url = $('path').value.trim();
+  if (isXLSX(url)) {
+    loadXLSX(url).then(rows => buildIndexesFromRows(rows, Catalog.idx));
+  } else {
+    fetchDecoded(url).then(text => {
+      const det=detectCSV(text); let lines=det.lines; if(det.dropFirst) lines=lines.slice(1);
+      buildIndexesFromCSV(lines, det.delim, Catalog.idx);
+    });
+  }
+  $('btnProcesar').disabled = false;
 };
 
 /* sample toggle */
@@ -549,7 +517,7 @@ async function loopDetect(){
 /* ========= Reporte ========= */
 function buildReporte(){
   if (!EXIST_TEO || EXIST_TEO.size===0){ alert('Primero procesa existencias (teórico).'); return; }
-  const escPorKey = new Map(); // key3 -> qty (convertir scans a key por catálogo)
+  const escPorKey = new Map(); // key3 -> qty
   for(const [bc,qty] of SCANS.entries()){
     const info = Catalog.byBarcode.get(bc);
     if(!info) continue;
@@ -573,7 +541,6 @@ function buildReporte(){
   $('tbodyRep').innerHTML = html || '<tr><td colspan="6">—</td></tr>';
   $('repExactos').textContent=exactos; $('repFalt').textContent=falt; $('repSob').textContent=sob;
   $('repStatus').textContent = `Listo (${allKeys.size} claves)`;
-  // guardar snapshot del reporte
   window._reporte = { escPorKey, exactos, falt, sob };
 }
 function exportReporteCSV(){
@@ -647,8 +614,6 @@ $('btnProcesar').onclick=()=>{
 
 $('btnBuildRep').onclick=buildReporte;
 $('btnExportRep').onclick=exportReporteCSV;
-
-/* ========= Fin ========= */
 </script>
 </body>
 </html>
