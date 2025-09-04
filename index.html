@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>CKLASS — Catálogo Master (consulta) + Existencias (teórico)</title>
+<title>CKLASS — Catálogo + Existencias (con mapeo de columnas)</title>
 <style>
   :root{--b:#111;--m:#f6f7f9;--bd:#d0d7de;--mut:#6b7280}
   *{box-sizing:border-box} body{font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;background:var(--m);color:var(--b);margin:0}
@@ -14,7 +14,7 @@
   .btn{display:inline-flex;align-items:center;gap:.5rem;padding:.5rem .8rem;border-radius:.5rem;border:1px solid var(--bd);background:#fff;cursor:pointer}
   .btn:active{transform:scale(.97);opacity:.9}
   .btn[disabled]{opacity:.6;pointer-events:none}
-  input,textarea{width:100%;padding:.6rem;border:1px solid var(--bd);border-radius:.5rem;font-family:inherit}
+  input,textarea,select{width:100%;padding:.6rem;border:1px solid var(--bd);border-radius:.5rem;font-family:inherit}
   textarea{min-height:160px;white-space:pre}
   .card{background:#fff;border:1px solid var(--bd);border-radius:.75rem;padding:1rem;margin-top:12px}
   table{border-collapse:collapse;width:100%;background:#fff;border:1px solid var(--bd);border-radius:.5rem;overflow:hidden}
@@ -22,16 +22,17 @@
   th{background:#f8fafc} tfoot td{font-weight:600;background:#fafafa}
   .ok{color:#047857}.err{color:#b91c1c}.mono{font-family:ui-monospace,Menlo,Consolas,monospace}
   .pill{border:1px solid var(--bd);border-radius:.5rem;padding:.15rem .4rem;background:#fff}
+  .hint{font-size:.85rem;color:#6b7280}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>CKLASS — Catálogo Master (consulta) + Existencias (teórico)</h1>
-  <p>Flujo etapa 1: Cargar Catálogo Master → Pegar existencias (MODELO, COLOR, TALLA, CANT). El **catálogo** es la base de referencia; luego (etapa 2) se escaneará código de barras para cruzar contra existencias.</p>
+  <h1>CKLASS — Catálogo + Existencias (con mapeo de columnas)</h1>
+  <p>1) Cargar Catálogo Master desde <code>./static/catalogo-master.csv</code> → 2) Mapear columnas si hace falta → 3) Pegar existencias.</p>
 
-  <!-- 1) CARGA CATÁLOGO -->
+  <!-- CARGA -->
   <div class="card">
-    <h2>1) Cargar Catálogo Master</h2>
+    <h2>1) Cargar Catálogo</h2>
     <div class="row" style="margin-bottom:.5rem">
       <button id="btnLoad" class="btn">Cargar CSV</button>
       <button id="btnBust" class="btn" title="Evita caché agregando ?v=timestamp">Forzar recarga</button>
@@ -45,13 +46,36 @@
       <div><b>Sep:</b> <span id="sep">—</span></div>
       <div><b>Headers:</b> <span id="hdrs">—</span></div>
       <div><b>Filas:</b> <span id="rows">—</span></div>
-      <div><b>Llaves:</b> <span class="mono">barcode→(mod,color,talla) · (mod,color,talla)→barcode</span></div>
     </div>
   </div>
 
-  <!-- 2) PEGAR EXISTENCIAS (teórico) -->
+  <!-- MAPEADOR DE COLUMNAS -->
+  <div id="mapperCard" class="card" style="display:none">
+    <h2>2) Mapear columnas (si no se detectaron automáticamente)</h2>
+    <p class="hint">Selecciona qué columna del CSV corresponde a cada campo requerido. Luego pulsa <b>Confirmar mapeo</b>.</p>
+    <div class="row">
+      <div style="flex:1">
+        <label>Modelo</label>
+        <select id="selMOD"></select>
+      </div>
+      <div style="flex:1">
+        <label>Color</label>
+        <select id="selCOLOR"></select>
+      </div>
+      <div style="flex:1">
+        <label>Talla</label>
+        <select id="selTALLA"></select>
+      </div>
+    </div>
+    <div class="row" style="margin-top:.5rem">
+      <button id="btnConfirmMap" class="btn">Confirmar mapeo</button>
+      <span id="mapStatus" class="pill">—</span>
+    </div>
+  </div>
+
+  <!-- PEGAR EXISTENCIAS -->
   <div class="card">
-    <h2>2) Pegar existencias (inventario teórico)</h2>
+    <h2>3) Pegar existencias (inventario teórico)</h2>
     <p class="mono">Formato por línea: <code>MODELO, COLOR ..... TALLA ..... CANT</code></p>
     <pre class="mono" style="margin:.25rem 0 .5rem;background:#f8fafc;padding:.5rem;border:1px solid #e5e7eb;border-radius:.5rem">
 601-16,NEGRO              270          1
@@ -67,9 +91,9 @@
     </div>
   </div>
 
-  <!-- 3) PREVIEW/RESULTADO TEÓRICO -->
+  <!-- RESULTADO TEÓRICO -->
   <div class="card">
-    <h2>3) Existencias teóricas (agrupadas por MODELO, COLOR, TALLA)</h2>
+    <h2>4) Existencias teóricas</h2>
     <div class="row">
       <div><b>Claves:</b> <span id="nClaves">0</span></div>
       <div><b>Piezas:</b> <span id="nPiezas">0</span></div>
@@ -88,30 +112,18 @@
       </table>
     </div>
   </div>
-
-  <!-- 4) CRUCE POR ESCANEO (preparado para etapa 2) -->
-  <div class="card">
-    <h2>4) Escaneo (próxima etapa)</h2>
-    <p>Este bloque queda listo para conectar el lector: se mapeará el <b>código de barras escaneado</b> → (modelo, color, talla), y se cruzará contra las existencias teóricas para obtener faltantes/sobrantes.</p>
-    <div class="row">
-      <input id="scanInput" placeholder="(próximamente) Escanea código de barras…" disabled />
-      <button id="btnCruzar" class="btn" disabled>Generar faltantes/sobrantes</button>
-    </div>
-    <p style="margin-top:.5rem;color:#888">Cuando lo activemos, aquí aparecerán los resultados del cruce.</p>
-  </div>
 </div>
 
 <script>
 (function(){
-  /* =========== Utilidades generales =========== */
   const $ = id => document.getElementById(id);
-  const norm = s => (s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase();
-  const key3 = (mod,col,tal)=> `${norm(mod)}|${norm(col)}|${norm(tal)}`;
+  const norm = s => (s??'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').trim().toUpperCase();
 
+  /* ---------- CSV utils ---------- */
   function detectCSV(text){
-    const lines = text.split(/\r\n|\n|\r/);
+    const lines = text.split(/\\r\\n|\\n|\\r/);
     const first = lines[0] || '';
-    const m = /^sep\s*=\s*([,;|\t])\s*$/i.exec(first);
+    const m = /^sep\\s*=\\s*([,;|\\t])\\s*$/i.exec(first);
     if (m) return { delim: m[1], dropFirst: true };
     const sample = lines.slice(0, 200).join('\\n');
     const counts = { '\\t':(sample.match(/\\t/g)||[]).length, ';':(sample.match(/;/g)||[]).length, ',':(sample.match(/,/g)||[]).length, '|':(sample.match(/\\|/g)||[]).length };
@@ -149,52 +161,67 @@
     return text;
   }
 
-  /* =========== Estado del catálogo =========== */
+  /* ---------- Estado ---------- */
   const Catalog = {
     sep:',',
     headersRaw:[],
     headersNorm:[],
     rows:[],
-    idx:{ BC:-1, MOD:-1, COLOR:-1, TALLA:-1 },
-    byBarcode:new Map(),          // barcode -> {mod,color,talla}
-    byKey:new Map()               // key3(mod,col,tal) -> barcode
+    idx:{ MOD:-1, COLOR:-1, TALLA:-1, BC:-1 },
   };
 
-  function mapIdx(headersNorm){
-    const want = {
-      BC:    ['CODIGO_BARRA','CODIGO DE BARRAS','CODIGO BARRA','BARCODE','EAN','EAN13','UPC','CODIGO','COD_BARRAS','CBARRAS'],
-      MOD:   ['MOD','MODELO','SKU'],
-      COLOR: ['COLOR','COL'],
-      TALLA: ['TALLA','SIZE','NUMERO','NUM']
-    };
-    const idx={BC:-1,MOD:-1,COLOR:-1,TALLA:-1};
-    for (const [k, arr] of Object.entries(want)){
-      for (const a of arr){ const p=headersNorm.indexOf(a); if(p!==-1){ idx[k]=p; break; } }
+  // Alias ampliados y coincidencia flexible
+  const ALIASES = {
+    MOD:   ['MOD','MODELO','SKU','ESTILO','STYLE','ARTICULO','REFERENCIA','PRODUCTO','MODELO DESCRIPCION','DESC MODELO','DESC. MODELO'],
+    COLOR: ['COLOR','COL','CLR','COLOR DESCRIPCION','DESC COLOR','COLOR NOMBRE','COLORNAME'],
+    TALLA: ['TALLA','TALL','SIZE','MEDIDA','NUMERO','NUM','TALLA MX','SIZE MX','MEASURE'],
+    BC:    ['CODIGO_BARRA','CODIGO DE BARRAS','CODIGO BARRA','BARCODE','EAN','EAN13','UPC','CODIGO','COD_BARRAS','CBARRAS']
+  };
+
+  function findIdx(headersNorm, who){
+    // 1) exact
+    for (const a of ALIASES[who]) {
+      const p = headersNorm.indexOf(norm(a));
+      if (p !== -1) return p;
     }
+    // 2) contains (fuzzy)
+    const patterns = {
+      MOD:   [/MOD|MODELO|SKU|ESTILO|STYLE|ARTIC|REF|PROD/i],
+      COLOR: [/COLOR|COL|CLR/i],
+      TALLA: [/TALL|SIZE|MEDID|NUM(ERO)?/i],
+      BC:    [/BAR|EAN|UPC|COD(IGO)?/i],
+    };
+    for (let i=0;i<headersNorm.length;i++){
+      const h = headersNorm[i];
+      if (patterns[who].some(rx => rx.test(h))) return i;
+    }
+    return -1;
+  }
+
+  function tryMapIdx(headersNorm){
+    const idx = { MOD:-1, COLOR:-1, TALLA:-1, BC:-1 };
+    idx.MOD   = findIdx(headersNorm,'MOD');
+    idx.COLOR = findIdx(headersNorm,'COLOR');
+    idx.TALLA = findIdx(headersNorm,'TALLA');
+    idx.BC    = findIdx(headersNorm,'BC');
     return idx;
   }
 
-  function buildCatalogIndexes(){
-    Catalog.byBarcode.clear();
-    Catalog.byKey.clear();
-    const { rows, idx } = Catalog;
-    let count=0;
-    for(const cols of rows){
-      const bc    = (cols[idx.BC]    ?? '').trim();
-      const mod   = (cols[idx.MOD]   ?? '').trim();
-      const color = (cols[idx.COLOR] ?? '').trim();
-      const talla = (cols[idx.TALLA] ?? '').trim();
-      if(!mod || !color || !talla) continue;
-      const item = {mod,color,talla};
-      const k = key3(mod,color,talla);
-      if (bc) Catalog.byBarcode.set(bc, item);
-      if (!Catalog.byKey.has(k)) Catalog.byKey.set(k, bc || '');
-      count++;
-    }
-    return count;
+  function fillSelect(sel, headersRaw, selectedIdx){
+    sel.innerHTML = headersRaw.map((h,i)=>`<option value="${i}" ${i===selectedIdx?'selected':''}>${h}</option>`).join('');
   }
 
-  /* =========== Cargar catálogo =========== */
+  function showMapper(headersRaw, idx){
+    $('mapperCard').style.display = 'block';
+    fillSelect($('selMOD'),   headersRaw, idx.MOD   === -1 ? 0 : idx.MOD);
+    fillSelect($('selCOLOR'), headersRaw, idx.COLOR === -1 ? 0 : idx.COLOR);
+    fillSelect($('selTALLA'), headersRaw, idx.TALLA === -1 ? 0 : idx.TALLA);
+    $('mapStatus').textContent = 'Selecciona y confirma';
+  }
+
+  function hideMapper(){ $('mapperCard').style.display = 'none'; }
+
+  /* ---------- Cargar catálogo ---------- */
   async function cargarCatalogo(){
     const url = $('path').value.trim();
     $('status').textContent = 'Descargando…';
@@ -204,6 +231,7 @@
       if (text.charCodeAt(0)===0xFEFF) text = text.slice(1);
       const det = detectCSV(text);
       $('sep').textContent = det.delim === '\\t' ? 'TAB' : det.delim;
+
       let lines = text.split(/\\r\\n|\\n|\\r/);
       if (det.dropFirst) lines = lines.slice(1);
       lines = lines.filter(l=>l.trim().length>0);
@@ -212,35 +240,46 @@
       const d = det.delim;
       const headersRaw  = splitCSV(lines[0], d);
       const headersNorm = headersRaw.map(h=>norm(h));
-      const idx = mapIdx(headersNorm);
+      const idx = tryMapIdx(headersNorm);
 
-      if (idx.MOD<0 || idx.COLOR<0 || idx.TALLA<0)
-        throw new Error('Faltan columnas en Catálogo: se requieren MOD, COLOR y TALLA.');
-      if (idx.BC<0)
-        console.warn('No se encontró columna de código de barras; solo se resolverá (mod,color,talla)→barcode vacío.');
-
-      const rows = [];
-      for(let i=1;i<lines.length;i++){ rows.push( splitCSV(lines[i], d) ); }
+      const rows=[]; for(let i=1;i<lines.length;i++){ rows.push( splitCSV(lines[i], d) ); }
 
       Object.assign(Catalog, { sep:d, headersRaw, headersNorm, rows, idx });
-      const filled = buildCatalogIndexes();
 
       $('hdrs').textContent = headersRaw.join(' | ');
       $('rows').textContent = rows.length;
-      $('status').innerHTML = '<span class="ok">OK</span>';
-      $('btnProcesar').disabled = false;
 
+      // Si falta alguno, pide mapeo manual
+      if (idx.MOD<0 || idx.COLOR<0 || idx.TALLA<0){
+        $('status').innerHTML = '<span class="err">Faltan columnas. Mapea abajo.</span>';
+        showMapper(headersRaw, idx);
+      } else {
+        $('status').innerHTML = '<span class="ok">OK</span>';
+        hideMapper();
+        $('btnProcesar').disabled = false;
+      }
     }catch(e){
       $('status').innerHTML = '<span class="err">❌ '+(e?.message||e)+'</span>';
       $('btnProcesar').disabled = true;
+      hideMapper();
       alert('Error cargando catálogo: ' + (e?.message||e));
     }
   }
 
-  /* =========== Existencias (teórico) =========== */
-  // Entrada esperada por línea: MODELO, COLOR ..... TALLA ..... CANT
+  // Confirmar mapeo manual
+  $('btnConfirmMap').addEventListener('click', ()=>{
+    Catalog.idx.MOD   = Number($('selMOD').value);
+    Catalog.idx.COLOR = Number($('selCOLOR').value);
+    Catalog.idx.TALLA = Number($('selTALLA').value);
+    $('mapStatus').textContent = `Listo: MOD=${Catalog.idx.MOD}, COLOR=${Catalog.idx.COLOR}, TALLA=${Catalog.idx.TALLA}`;
+    $('status').innerHTML = '<span class="ok">OK (mapeo manual)</span>';
+    $('btnProcesar').disabled = false;
+  });
+
+  /* ---------- Existencias (pegar) ---------- */
   function parseExistenciasText(text){
-    const map = new Map();      // key3(mod,col,tal) -> cant
+    // Espera: MODELO, COLOR ..... TALLA ..... CANT
+    const map = new Map(); // key -> cant
     const lines = (text||'').split(/\\r\\n|\\n|\\r/).map(s=>s.trim()).filter(Boolean);
     let nLineas=0, nOmitidos=0, nPiezas=0;
 
@@ -251,27 +290,23 @@
       if (coma >= 0){
         modelo = line.slice(0, coma).trim();
         resto  = line.slice(coma+1).trim();
-      } else {
-        // Si no hay coma, no podemos identificar COLOR correctamente; omitir.
-        nOmitidos++; continue;
-      }
-      // Resto: ... COLOR .... TALLA .... CANT
+      } else { nOmitidos++; continue; }
+
       const m = /^(.*\\S)\\s+(\\S+)\\s+(\\d+(?:[.,]\\d+)?)$/.exec(resto);
       if(!m){
-        // Intento sin cantidad explícita (asumir 1)
         const m2 = /^(.*\\S)\\s+(\\S+)$/.exec(resto);
         if(!m2){ nOmitidos++; continue; }
         const color = (m2[1]||'').trim();
         const talla = (m2[2]||'').trim();
         const cant  = 1;
-        const k = key3(modelo,color,talla);
+        const k = `${norm(modelo)}|${norm(color)}|${norm(talla)}`;
         map.set(k, (map.get(k)||0) + cant);
         nPiezas += cant;
       }else{
         const color = (m[1]||'').trim();
         const talla = (m[2]||'').trim();
         const cant  = Number((m[3]||'1').replace(',','.')) || 1;
-        const k = key3(modelo,color,talla);
+        const k = `${norm(modelo)}|${norm(color)}|${norm(talla)}`;
         map.set(k, (map.get(k)||0) + cant);
         nPiezas += cant;
       }
@@ -309,41 +344,31 @@
     document.body.appendChild(a); a.click(); a.remove();
   }
 
-  /* =========== Esqueleto cruce (para etapa 2) =========== */
-  // (lo activaremos cuando conectemos el escáner)
-  function cruzarEscaneosConTeorico(){ /* TODO: etapa 2 */ }
-
-  /* =========== Eventos =========== */
+  /* ---------- Eventos ---------- */
   $('btnLoad').addEventListener('click', cargarCatalogo);
   $('btnBust').addEventListener('click', ()=>{
     const u = $('path').value.trim();
     $('path').value = u + (u.includes('?')?'&':'?') + 'v=' + Date.now();
   });
-
   $('btnProcesar').addEventListener('click', ()=>{
-    if (!Catalog.rows.length){ alert('Primero carga el Catálogo Master.'); return; }
+    if (!Catalog.rows.length){ alert('Primero carga el Catálogo.'); return; }
+    if (Catalog.idx.MOD<0 || Catalog.idx.COLOR<0 || Catalog.idx.TALLA<0){
+      $('mapperCard').scrollIntoView({behavior:'smooth'}); return;
+    }
     const { agg, nLineas, nOmitidos, nPiezas, nClaves } = parseExistenciasText( $('paste').value );
     $('nClaves').textContent  = nClaves;
     $('nPiezas').textContent  = nPiezas;
     $('nLineas').textContent  = nLineas;
     $('nOmitidos').textContent= nOmitidos;
-    const total = renderTeorico(agg);
+    renderTeorico(agg);
     $('resumenTeo').textContent = nClaves ? `OK: ${nClaves} claves · ${nPiezas} piezas` : '—';
     $('btnExportTeorico').disabled = nClaves === 0;
-    // guarda en memoria para posible cruce posterior
     window._existTeorico = agg;
   });
-
   $('btnExportTeorico').addEventListener('click', ()=>{
     if (!window._existTeorico) return;
     exportTeoricoCSV(window._existTeorico);
   });
-
-  // Habilitar “Procesar existencias” solo cuando haya catálogo
-  const enableProcesar = () => $('btnProcesar').disabled = !Catalog.rows.length;
-  const origSet = $('status').textContent;
-  const mo = new MutationObserver(()=>enableProcesar());
-  mo.observe($('status'), { childList:true, subtree:true });
 })();
 </script>
 </body>
