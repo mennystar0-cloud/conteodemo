@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>CKLASS — Catálogo + Existencias (con mapeo de columnas)</title>
+<title>CKLASS — Catálogo (resumen) + Existencias</title>
 <style>
   :root{--b:#111;--m:#f6f7f9;--bd:#d0d7de;--mut:#6b7280}
   *{box-sizing:border-box} body{font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;background:var(--m);color:var(--b);margin:0}
@@ -23,12 +23,14 @@
   .ok{color:#047857}.err{color:#b91c1c}.mono{font-family:ui-monospace,Menlo,Consolas,monospace}
   .pill{border:1px solid var(--bd);border-radius:.5rem;padding:.15rem .4rem;background:#fff}
   .hint{font-size:.85rem;color:#6b7280}
+  .muted{color:#6b7280}
+  pre{background:#fff;border:1px solid var(--bd);border-radius:.5rem;padding:.75rem;overflow:auto}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>CKLASS — Catálogo + Existencias (con mapeo de columnas)</h1>
-  <p>1) Cargar Catálogo Master desde <code>./static/catalogo-master.csv</code> → 2) Mapear columnas si hace falta → 3) Pegar existencias.</p>
+  <h1>CKLASS — Resumen de Catálogo + Existencias</h1>
+  <p>Se muestra confirmación y conteo (sin listar completo). Incluye mapeo manual si es necesario y un <b>toggle de muestra</b> (10 líneas) para depurar.</p>
 
   <!-- CARGA -->
   <div class="card">
@@ -45,27 +47,27 @@
       <div><b>Enc:</b> <span id="enc">—</span></div>
       <div><b>Sep:</b> <span id="sep">—</span></div>
       <div><b>Headers:</b> <span id="hdrs">—</span></div>
-      <div><b>Filas:</b> <span id="rows">—</span></div>
+      <div><b>Registros:</b> <span id="rows">—</span></div>
+    </div>
+
+    <!-- Toggle de muestra -->
+    <div class="row" style="margin-top:.5rem">
+      <button id="btnToggleSample" class="btn" disabled>Ver 10 líneas de muestra</button>
+      <span class="muted">Solo para depurar. No se carga todo el catálogo en pantalla.</span>
+    </div>
+    <div id="sampleWrap" style="display:none; margin-top:.5rem">
+      <pre id="sampleBox" class="mono">—</pre>
     </div>
   </div>
 
-  <!-- MAPEADOR DE COLUMNAS -->
+  <!-- MAPEADOR DE COLUMNAS (solo si no detecta) -->
   <div id="mapperCard" class="card" style="display:none">
-    <h2>2) Mapear columnas (si no se detectaron automáticamente)</h2>
-    <p class="hint">Selecciona qué columna del CSV corresponde a cada campo requerido. Luego pulsa <b>Confirmar mapeo</b>.</p>
+    <h2>2) Mapear columnas</h2>
+    <p class="hint">Elige qué encabezado corresponde a cada campo. Luego pulsa <b>Confirmar mapeo</b>.</p>
     <div class="row">
-      <div style="flex:1">
-        <label>Modelo</label>
-        <select id="selMOD"></select>
-      </div>
-      <div style="flex:1">
-        <label>Color</label>
-        <select id="selCOLOR"></select>
-      </div>
-      <div style="flex:1">
-        <label>Talla</label>
-        <select id="selTALLA"></select>
-      </div>
+      <div style="flex:1"><label>Modelo</label><select id="selMOD"></select></div>
+      <div style="flex:1"><label>Color</label><select id="selCOLOR"></select></div>
+      <div style="flex:1"><label>Talla</label><select id="selTALLA"></select></div>
     </div>
     <div class="row" style="margin-top:.5rem">
       <button id="btnConfirmMap" class="btn">Confirmar mapeo</button>
@@ -102,13 +104,9 @@
     </div>
     <div style="overflow:auto;margin-top:.5rem">
       <table>
-        <thead>
-          <tr><th>Modelo</th><th>Color</th><th>Talla</th><th style="text-align:right">Cantidad</th></tr>
-        </thead>
+        <thead><tr><th>Modelo</th><th>Color</th><th>Talla</th><th style="text-align:right">Cantidad</th></tr></thead>
         <tbody id="tbodyTeo"><tr><td colspan="4">—</td></tr></tbody>
-        <tfoot>
-          <tr><td colspan="3" style="text-align:right">TOTAL</td><td id="totTeo" style="text-align:right">0</td></tr>
-        </tfoot>
+        <tfoot><tr><td colspan="3" style="text-align:right">TOTAL</td><td id="totTeo" style="text-align:right">0</td></tr></tfoot>
       </table>
     </div>
   </div>
@@ -117,18 +115,18 @@
 <script>
 (function(){
   const $ = id => document.getElementById(id);
-  const norm = s => (s??'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').trim().toUpperCase();
+  const norm = s => (s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase();
 
-  /* ---------- CSV utils ---------- */
+  /* ===== CSV utils ===== */
   function detectCSV(text){
-    const lines = text.split(/\\r\\n|\\n|\\r/);
+    const lines = text.split(/\r\n|\n|\r/);
     const first = lines[0] || '';
-    const m = /^sep\\s*=\\s*([,;|\\t])\\s*$/i.exec(first);
-    if (m) return { delim: m[1], dropFirst: true };
-    const sample = lines.slice(0, 200).join('\\n');
-    const counts = { '\\t':(sample.match(/\\t/g)||[]).length, ';':(sample.match(/;/g)||[]).length, ',':(sample.match(/,/g)||[]).length, '|':(sample.match(/\\|/g)||[]).length };
+    const m = /^sep\s*=\s*([,;|\t])\s*$/i.exec(first);
+    if (m) return { delim: m[1], dropFirst: true, lines };
+    const sample = lines.slice(0, 200).join('\n');
+    const counts = { '\t':(sample.match(/\t/g)||[]).length, ';':(sample.match(/;/g)||[]).length, ',':(sample.match(/,/g)||[]).length, '|':(sample.match(/\|/g)||[]).length };
     const delim = Object.entries(counts).sort((a,b)=>b[1]-a[1])[0][0] || ',';
-    return { delim, dropFirst:false };
+    return { delim, dropFirst:false, lines };
   }
   function splitCSV(line, d){
     const out=[]; let cur='', q=false;
@@ -161,35 +159,31 @@
     return text;
   }
 
-  /* ---------- Estado ---------- */
+  /* ===== Estado mínimo ===== */
   const Catalog = {
     sep:',',
     headersRaw:[],
     headersNorm:[],
-    rows:[],
-    idx:{ MOD:-1, COLOR:-1, TALLA:-1, BC:-1 },
+    idx:{ MOD:-1, COLOR:-1, TALLA:-1 },
+    rowCount:0,
+    sampleText:'' // <-- primeras 10 líneas de datos (sin encabezado)
   };
 
-  // Alias ampliados y coincidencia flexible
   const ALIASES = {
-    MOD:   ['MOD','MODELO','SKU','ESTILO','STYLE','ARTICULO','REFERENCIA','PRODUCTO','MODELO DESCRIPCION','DESC MODELO','DESC. MODELO'],
-    COLOR: ['COLOR','COL','CLR','COLOR DESCRIPCION','DESC COLOR','COLOR NOMBRE','COLORNAME'],
-    TALLA: ['TALLA','TALL','SIZE','MEDIDA','NUMERO','NUM','TALLA MX','SIZE MX','MEASURE'],
-    BC:    ['CODIGO_BARRA','CODIGO DE BARRAS','CODIGO BARRA','BARCODE','EAN','EAN13','UPC','CODIGO','COD_BARRAS','CBARRAS']
+    MOD:   ['MOD','MODELO','SKU','ESTILO','STYLE','ARTICULO','REFERENCIA','PRODUCTO'],
+    COLOR: ['COLOR','COL','CLR','COLOR DESCRIPCION','DESC COLOR'],
+    TALLA: ['TALLA','TALL','SIZE','MEDIDA','NUMERO','NUM']
   };
 
   function findIdx(headersNorm, who){
-    // 1) exact
     for (const a of ALIASES[who]) {
       const p = headersNorm.indexOf(norm(a));
       if (p !== -1) return p;
     }
-    // 2) contains (fuzzy)
     const patterns = {
       MOD:   [/MOD|MODELO|SKU|ESTILO|STYLE|ARTIC|REF|PROD/i],
       COLOR: [/COLOR|COL|CLR/i],
       TALLA: [/TALL|SIZE|MEDID|NUM(ERO)?/i],
-      BC:    [/BAR|EAN|UPC|COD(IGO)?/i],
     };
     for (let i=0;i<headersNorm.length;i++){
       const h = headersNorm[i];
@@ -197,20 +191,15 @@
     }
     return -1;
   }
-
-  function tryMapIdx(headersNorm){
-    const idx = { MOD:-1, COLOR:-1, TALLA:-1, BC:-1 };
-    idx.MOD   = findIdx(headersNorm,'MOD');
-    idx.COLOR = findIdx(headersNorm,'COLOR');
-    idx.TALLA = findIdx(headersNorm,'TALLA');
-    idx.BC    = findIdx(headersNorm,'BC');
-    return idx;
-  }
+  const tryMapIdx = headersNorm => ({
+    MOD:   findIdx(headersNorm,'MOD'),
+    COLOR: findIdx(headersNorm,'COLOR'),
+    TALLA: findIdx(headersNorm,'TALLA')
+  });
 
   function fillSelect(sel, headersRaw, selectedIdx){
     sel.innerHTML = headersRaw.map((h,i)=>`<option value="${i}" ${i===selectedIdx?'selected':''}>${h}</option>`).join('');
   }
-
   function showMapper(headersRaw, idx){
     $('mapperCard').style.display = 'block';
     fillSelect($('selMOD'),   headersRaw, idx.MOD   === -1 ? 0 : idx.MOD);
@@ -218,21 +207,23 @@
     fillSelect($('selTALLA'), headersRaw, idx.TALLA === -1 ? 0 : idx.TALLA);
     $('mapStatus').textContent = 'Selecciona y confirma';
   }
-
   function hideMapper(){ $('mapperCard').style.display = 'none'; }
 
-  /* ---------- Cargar catálogo ---------- */
+  /* ===== Cargar (resumen + muestra opcional) ===== */
   async function cargarCatalogo(){
     const url = $('path').value.trim();
     $('status').textContent = 'Descargando…';
     $('sep').textContent = $('hdrs').textContent = $('rows').textContent = '—';
+    $('btnToggleSample').disabled = true;
+    $('sampleWrap').style.display = 'none';
     try{
       let text = await fetchDecoded(url);
       if (text.charCodeAt(0)===0xFEFF) text = text.slice(1);
-      const det = detectCSV(text);
-      $('sep').textContent = det.delim === '\\t' ? 'TAB' : det.delim;
 
-      let lines = text.split(/\\r\\n|\\n|\\r/);
+      const det = detectCSV(text);
+      $('sep').textContent = det.delim === '\t' ? 'TAB' : det.delim;
+
+      let lines = det.lines;
       if (det.dropFirst) lines = lines.slice(1);
       lines = lines.filter(l=>l.trim().length>0);
       if (!lines.length) throw new Error('Catálogo vacío');
@@ -242,19 +233,29 @@
       const headersNorm = headersRaw.map(h=>norm(h));
       const idx = tryMapIdx(headersNorm);
 
-      const rows=[]; for(let i=1;i<lines.length;i++){ rows.push( splitCSV(lines[i], d) ); }
+      Catalog.sep = d;
+      Catalog.headersRaw  = headersRaw;
+      Catalog.headersNorm = headersNorm;
+      Catalog.idx = idx;
+      Catalog.rowCount = Math.max(0, lines.length - 1);
 
-      Object.assign(Catalog, { sep:d, headersRaw, headersNorm, rows, idx });
+      // Guardar SOLO una muestra de 10 líneas (sin encabezado)
+      const sampleLines = [];
+      for (let i = 1; i < Math.min(lines.length, 11); i++) {
+        sampleLines.push(lines[i]);
+      }
+      Catalog.sampleText = sampleLines.join('\n');
 
       $('hdrs').textContent = headersRaw.join(' | ');
-      $('rows').textContent = rows.length;
+      $('rows').textContent = Catalog.rowCount;
 
-      // Si falta alguno, pide mapeo manual
+      $('btnToggleSample').disabled = Catalog.sampleText.length === 0;
+
       if (idx.MOD<0 || idx.COLOR<0 || idx.TALLA<0){
-        $('status').innerHTML = '<span class="err">Faltan columnas. Mapea abajo.</span>';
+        $('status').innerHTML = '<span class="ok">Cargado. Falta mapear columnas.</span>';
         showMapper(headersRaw, idx);
       } else {
-        $('status').innerHTML = '<span class="ok">OK</span>';
+        $('status').innerHTML = '<span class="ok">Cargado correctamente</span>';
         hideMapper();
         $('btnProcesar').disabled = false;
       }
@@ -266,6 +267,16 @@
     }
   }
 
+  // Toggle muestra
+  let sampleVisible = false;
+  $('btnToggleSample').addEventListener('click', ()=>{
+    if (!Catalog.sampleText) return;
+    sampleVisible = !sampleVisible;
+    $('sampleWrap').style.display = sampleVisible ? 'block' : 'none';
+    $('sampleBox').textContent = Catalog.sampleText || '—';
+    $('btnToggleSample').textContent = sampleVisible ? 'Ocultar muestra' : 'Ver 10 líneas de muestra';
+  });
+
   // Confirmar mapeo manual
   $('btnConfirmMap').addEventListener('click', ()=>{
     Catalog.idx.MOD   = Number($('selMOD').value);
@@ -276,11 +287,11 @@
     $('btnProcesar').disabled = false;
   });
 
-  /* ---------- Existencias (pegar) ---------- */
+  /* ===== Pegado existencias ===== */
+  const key3 = (mod,col,tal)=> `${norm(mod)}|${norm(col)}|${norm(tal)}`;
   function parseExistenciasText(text){
-    // Espera: MODELO, COLOR ..... TALLA ..... CANT
     const map = new Map(); // key -> cant
-    const lines = (text||'').split(/\\r\\n|\\n|\\r/).map(s=>s.trim()).filter(Boolean);
+    const lines = (text||'').split(/\r\n|\n|\r/).map(s=>s.trim()).filter(Boolean);
     let nLineas=0, nOmitidos=0, nPiezas=0;
 
     for(const line of lines){
@@ -292,28 +303,27 @@
         resto  = line.slice(coma+1).trim();
       } else { nOmitidos++; continue; }
 
-      const m = /^(.*\\S)\\s+(\\S+)\\s+(\\d+(?:[.,]\\d+)?)$/.exec(resto);
+      const m = /^(.*\S)\s+(\S+)\s+(\d+(?:[.,]\d+)?)$/.exec(resto);
       if(!m){
-        const m2 = /^(.*\\S)\\s+(\\S+)$/.exec(resto);
+        const m2 = /^(.*\S)\s+(\S+)$/.exec(resto);
         if(!m2){ nOmitidos++; continue; }
         const color = (m2[1]||'').trim();
         const talla = (m2[2]||'').trim();
         const cant  = 1;
-        const k = `${norm(modelo)}|${norm(color)}|${norm(talla)}`;
+        const k = key3(modelo,color,talla);
         map.set(k, (map.get(k)||0) + cant);
         nPiezas += cant;
       }else{
         const color = (m[1]||'').trim();
         const talla = (m[2]||'').trim();
         const cant  = Number((m[3]||'1').replace(',','.')) || 1;
-        const k = `${norm(modelo)}|${norm(color)}|${norm(talla)}`;
+        const k = key3(modelo,color,talla);
         map.set(k, (map.get(k)||0) + cant);
         nPiezas += cant;
       }
     }
     return { agg:map, nLineas, nOmitidos, nPiezas, nClaves: map.size };
   }
-
   function renderTeorico(aggMap){
     let html=''; let total=0;
     for(const [k, cant] of aggMap.entries()){
@@ -325,7 +335,6 @@
     $('totTeo').textContent = total;
     return total;
   }
-
   function exportTeoricoCSV(aggMap){
     const rows = [['MODELO','COLOR','TALLA','CANTIDAD']];
     for(const [k,c] of aggMap.entries()){
@@ -334,9 +343,9 @@
     }
     const csv = rows.map(r=>r.map(v=>{
       v = v ?? '';
-      if (/[",;\\t]/.test(v)) return '"'+v.replace(/"/g,'""')+'"';
+      if (/[",;\t]/.test(v)) return '"'+v.replace(/"/g,'""')+'"';
       return v;
-    }).join(',')).join('\\r\\n');
+    }).join(',')).join('\r\n');
     const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -344,14 +353,14 @@
     document.body.appendChild(a); a.click(); a.remove();
   }
 
-  /* ---------- Eventos ---------- */
+  /* ===== Eventos ===== */
   $('btnLoad').addEventListener('click', cargarCatalogo);
   $('btnBust').addEventListener('click', ()=>{
     const u = $('path').value.trim();
     $('path').value = u + (u.includes('?')?'&':'?') + 'v=' + Date.now();
   });
   $('btnProcesar').addEventListener('click', ()=>{
-    if (!Catalog.rows.length){ alert('Primero carga el Catálogo.'); return; }
+    if (!Catalog.headersRaw.length){ alert('Primero carga el Catálogo.'); return; }
     if (Catalog.idx.MOD<0 || Catalog.idx.COLOR<0 || Catalog.idx.TALLA<0){
       $('mapperCard').scrollIntoView({behavior:'smooth'}); return;
     }
