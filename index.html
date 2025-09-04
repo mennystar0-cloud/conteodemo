@@ -408,17 +408,33 @@ async function cargarCatalogo(){
     alert('Error cargando catálogo: '+(e?.message||e));
   }
 }
-function buildIndexes(lines, d, idx){
+/* ========= Construir índices ========= */
+// CSV: lines (string[]), con encabezado en lines[0]
+function buildIndexesFromCSV(lines, d, idx){
   Catalog.byBarcode.clear(); Catalog.byKey.clear();
   for(let i=1;i<lines.length;i++){
     const cols=splitCSV(lines[i], d);
-    const mod=(cols[idx.MOD]??'').trim(), color=(cols[idx.COLOR]??'').trim(), talla=(cols[idx.TALLA]??'').trim();
-    const bc= idx.BC>=0 ? (cols[idx.BC]??'').trim() : '';
-    if(!mod||!color||!talla) continue;
-    const k=key3(mod,color,talla);
-    if (bc) Catalog.byBarcode.set(bc,{mod,color,talla});
-    if (!Catalog.byKey.has(k)) Catalog.byKey.set(k, bc || '');
+    addIndexRow(cols, idx);
   }
+}
+// XLSX: rows (any[][]), con encabezado en rows[0]
+function buildIndexesFromRows(rows, idx){
+  Catalog.byBarcode.clear(); Catalog.byKey.clear();
+  for(let i=1;i<rows.length;i++){
+    const cols = rows[i] || [];
+    addIndexRow(cols, idx);
+  }
+}
+// Común: inserta en mapas a partir de un arreglo de columnas
+function addIndexRow(cols, idx){
+  const mod   = String(cols[idx.MOD]  ??'').trim();
+  const color = String(cols[idx.COLOR]??'').trim();
+  const talla = String(cols[idx.TALLA]??'').trim();
+  const bc    = idx.BC>=0 ? String(cols[idx.BC]??'').trim() : '';
+  if(!mod||!color||!talla) return;
+  const k=key3(mod,color,talla);
+  if (bc) Catalog.byBarcode.set(bc,{mod,color,talla});
+  if (!Catalog.byKey.has(k)) Catalog.byKey.set(k, bc || '');
 }
 
 /* mapper manual */
