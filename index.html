@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>CKLASS — Cíclico (Catálogo + Existencias + Escaneo + Reporte + Folios)</title>
 
-<!-- SheetJS para leer .xlsx -->
+<!-- SheetJS: debe cargarse ANTES del script principal -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js"></script>
 
 <style>
@@ -57,8 +57,8 @@
       <button id="btnBust" class="btn" title="Evita caché agregando ?v=timestamp">Forzar recarga</button>
       <span id="status" class="pill">—</span>
     </div>
-    <label class="muted" style="display:block;margin-bottom:.25rem">Ruta (CSV o XLSX)</label>
-    <input id="path" value="./static/catalogo-master.csv" />
+    <label class="muted" style="display:block;margin-bottom:.25rem">Ruta (XLSX o CSV)</label>
+    <input id="path" value="./static/catalogo-master.xlsx" />
     <div class="row" style="margin-top:.5rem;font-size:.92rem">
       <span class="badge"><b>HTTP</b> <span id="http">—</span></span>
       <span class="badge"><b>Enc</b> <span id="enc">—</span></span>
@@ -253,7 +253,21 @@ async function fetchDecoded(url){
 
 /* ========= XLSX helpers ========= */
 const isXLSX = (u) => /\.xlsx?(\?|$)/i.test(u);
+
+// Carga SheetJS si no está presente (protección extra)
+async function ensureXLSX() {
+  if (window.XLSX) return;
+  await new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js';
+    s.onload = resolve;
+    s.onerror = () => reject(new Error('No se pudo cargar SheetJS (XLSX).'));
+    document.head.appendChild(s);
+  });
+}
+
 async function loadXLSX(url) {
+  await ensureXLSX();
   const resp = await fetch(url, { cache: 'no-store' });
   if (!resp.ok) throw new Error('HTTP ' + resp.status);
   $('http').textContent = resp.status; $('enc').textContent = 'XLSX';
@@ -326,7 +340,7 @@ function buildIndexesFromRows(rows, idx){
   for(let i=1;i<rows.length;i++){ addIndexRow(rows[i]||[], idx); }
 }
 
-/* ========= Cargar catálogo (CSV o XLSX) ========= */
+/* ========= Cargar catálogo (XLSX o CSV) ========= */
 async function cargarCatalogo(){
   const url = $('path').value.trim();
   $('status').textContent='Descargando…';
