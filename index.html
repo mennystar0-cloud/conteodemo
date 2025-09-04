@@ -306,7 +306,7 @@ function showMapper(headersRaw, idx){
 }
 function hideMapper(){ $('mapperCard').style.display='none'; }
 
-/* ========= Cargar catálogo ========= */
+/* ========= Cargar catálogo (CSV o XLSX) ========= */
 async function cargarCatalogo(){
   const url = $('path').value.trim();
   $('status').textContent='Descargando…';
@@ -315,35 +315,83 @@ async function cargarCatalogo(){
   Catalog.byBarcode.clear(); Catalog.byKey.clear();
 
   try{
-    let text = await fetchDecoded(url);
-    if (text.charCodeAt(0)===0xFEFF) text = text.slice(1);
-    const det = detectCSV(text);
-    $('sep').textContent = det.delim === '\t' ? 'TAB' : det.delim;
+    let headersRaw=[], headersNorm=[], idx, rowCount=0, sampleText='', sepLabel='';
 
-    let lines = det.lines;
-    if (det.dropFirst) lines = lines.slice(1);
-    lines = lines.filter(l=>l.trim().length>0);
-    if (!lines.length) throw new Error('Catálogo vacío');
+    if (isXLSX(url)) {
+      // ----- XLSX -----
+      const rows = await loadXLSX(url);
+      if (!rows.length) throw new Error('Catálogo vacío (xlsx)');
+      headersRaw  = (rows[0]||[]).map(x=>String(x??''));
+      headersNorm = headersRaw.map(h=>norm(h));
+      idx = {
+        MOD:  findIdx(headersNorm,'MOD'),
+        COLOR:findIdx(headersNorm,'COLOR'),
+        TALLA:findIdx(headersNorm,'TALLA'),
+        BC:   findIdx(headersNorm,'BC'),
+      };
+      rowCount = Math.max(0, rows.length - 1);
+      sampleText = rows.slice(1, Math.min(rows.length, 11))
+                       .map(r => r.map(v=>String(v??'')).join(','))
+                       .join('\n');
+      sepLabel = 'XLSX';
+      // si ya tenemos columnas, construir índices
+      if (idx.MOD>=0 && idx.COLOR>=0 && idx.TALLA>=0) buildIndexesFromRows(rows, idx);
+      else showMapper(headersRaw, idx);
 
-    const d=det.delim;
-    const headersRaw=splitCSV(lines[0], d);
-    const headersNorm=headersRaw.map(h=>norm(h));
-    let idx = {
-      MOD:findIdx(headersNorm,'MOD'),
-      COLOR:findIdx(headersNorm,'COLOR'),
-      TALLA:findIdx(headersNorm,'TALLA'),
-      BC:findIdx(headersNorm,'BC'),
-    };
+    } else {
+      // ----- CSV -----
+      let text = await fetchDecoded(url);
+      if (text.charCodeAt(0)===0xFEFF) text = text.slice(1);
+      const det = detectCSV(text);
+      sepLabel = det.delim === '\t' ? 'TAB' : det.delim;
 
-    Catalog.sep=d; Catalog.headersRaw=headersRaw; Catalog.headersNorm=headersNorm; Catalog.idx=idx;
-    Catalog.rowCount=Math.max(0, lines.length-1);
-    $('hdrs').textContent=headersRaw.join(' | ');
-    $('rows').textContent=Catalog.rowCount;
+      let lines = det.lines;
+      if (det.dropFirst) lines = lines.slice(1);
+      lines = lines.filter(l=>l.trim().length>0);
+      if (!lines.length) throw new Error('Catálogo vacío (csv)');
 
-    // sample (10)
-    const sample=[]; for(let i=1;i<Math.min(lines.length,11);i++) sample.push(lines[i]);
-    Catalog.sampleText=sample.join('\n'); $('btnToggleSample').disabled = !Catalog.sampleText;
+      const d = det.delim;
+      headersRaw  = splitCSV(lines[0], d);
+      headersNorm = headersRaw.map(h=>norm(h));
+      idx = {
+        MOD:  findIdx(headersNorm,'MOD'),
+        COLOR:findIdx(headersNorm,'COLOR'),
+        TALLA:findIdx(headersNorm,'TALLA'),
+        BC:   findIdx(headersNorm,'BC'),
+      };
+      rowCount = Math.max(0, lines.length - 1);
+      sampleText = lines.slice(1, Math.min(lines.length, 11)).join('\n');
+      if (idx.MOD>=0 && idx.COLOR>=0 && idx.TALLA>=0) buildIndexesFromCSV(lines, d, idx);
+      else showMapper(headersRaw, idx);
+    }
 
+    // Actualiza UI común
+    Catalog.sep = sepLabel;
+    Catalog.headersRaw  = headersRaw;
+    Catalog.headersNorm = headersNorm;
+    Catalog.idx = idx;
+    Catalog.rowCount = rowCount;
+    Catalog.sampleText = sampleText;
+
+    $('sep').textContent   = sepLabel;
+    $('hdrs').textContent  = headersRaw.join(' | ');
+    $('rows').textContent  = rowCount;
+    $('btnToggleSample').disabled = !sampleText;
+
+    if (idx.MOD<0 || idx.COLOR<0 || idx.TALLA<0){
+      $('status').innerHTML = '<span class="ok">Cargado. Falta mapear columnas.</span>';
+    } else {
+      $('status').innerHTML = '<span class="ok">Cargado correctamente</span>';
+      hideMapper();
+      $('btnProcesar').disabled=false;
+    }
+
+  }catch(e){
+    $('status').innerHTML='<span class="err">❌ '+(e?.message||e)+'</span>';
+    $('btnProcesar').disabled=true; hideMapper();
+    alert('Error cargando catálogo: '+(e?.message||e));
+  }
+}
     // Construir índices (en streaming ligero)
     if (idx.MOD<0 || idx.COLOR<0 || idx.TALLA<0){
       $('status').innerHTML='<span class="ok">Cargado. Falta mapear columnas.</span>';
