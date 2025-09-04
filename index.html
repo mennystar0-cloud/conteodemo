@@ -250,6 +250,19 @@ async function fetchDecoded(url){
   if (!resp.ok) throw new Error('HTTP '+resp.status);
   return text;
 }
+/* ===== XLSX helpers ===== */
+const isXLSX = (u) => /\.xlsx?(\?|$)/i.test(u);
+
+async function loadXLSX(url) {
+  const resp = await fetch(url, { cache: 'no-store' });
+  if (!resp.ok) throw new Error('HTTP ' + resp.status);
+  const ab = await resp.arrayBuffer();
+  const wb = XLSX.read(ab, { type: 'array' });           // 1a hoja
+  const sh = wb.Sheets[wb.SheetNames[0]];
+  // rows: matriz [fila][col], sin perder ceros a la izquierda (raw:false), defval ''
+  const rows = XLSX.utils.sheet_to_json(sh, { header: 1, raw: false, defval: '' });
+  return rows; // primera fila son headers
+}
 
 /* ========= Catálogo (estado) ========= */
 const Catalog = {
