@@ -3,104 +3,99 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>CKLASS — Catálogo (resumen) + Existencias</title>
+<title>CKLASS — Cíclico (Catálogo + Existencias + Escaneo + Reporte + Folios)</title>
 <style>
-  :root{--b:#111;--m:#f6f7f9;--bd:#d0d7de;--mut:#6b7280}
+  :root{--b:#0f172a;--m:#f6f7f9;--bd:#d0d7de;--mut:#6b7280;--pri:#2563eb;--ok:#047857;--err:#b91c1c}
   *{box-sizing:border-box} body{font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;background:var(--m);color:var(--b);margin:0}
-  .wrap{max-width:1200px;margin:0 auto;padding:16px}
-  h1{margin:0 0 8px;font-size:24px} h2{margin:0 0 8px;font-size:18px}
+  .wrap{max-width:1250px;margin:0 auto;padding:16px}
+  h1{margin:0 0 8px;font-size:22px} h2{margin:0 0 8px;font-size:18px}
   p{margin:0 0 10px;color:var(--mut)}
   .row{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
-  .btn{display:inline-flex;align-items:center;gap:.5rem;padding:.5rem .8rem;border-radius:.5rem;border:1px solid var(--bd);background:#fff;cursor:pointer}
-  .btn:active{transform:scale(.97);opacity:.9}
-  .btn[disabled]{opacity:.6;pointer-events:none}
-  input,textarea,select{width:100%;padding:.6rem;border:1px solid var(--bd);border-radius:.5rem;font-family:inherit}
-  textarea{min-height:160px;white-space:pre}
-  .card{background:#fff;border:1px solid var(--bd);border-radius:.75rem;padding:1rem;margin-top:12px}
-  table{border-collapse:collapse;width:100%;background:#fff;border:1px solid var(--bd);border-radius:.5rem;overflow:hidden}
-  th,td{border-bottom:1px solid #eef2f7;padding:.45rem .55rem;font-size:.9rem;text-align:left}
-  th{background:#f8fafc} tfoot td{font-weight:600;background:#fafafa}
-  .ok{color:#047857}.err{color:#b91c1c}.mono{font-family:ui-monospace,Menlo,Consolas,monospace}
-  .pill{border:1px solid var(--bd);border-radius:.5rem;padding:.15rem .4rem;background:#fff}
-  .hint{font-size:.85rem;color:#6b7280}
-  .muted{color:#6b7280}
-  pre{background:#fff;border:1px solid var(--bd);border-radius:.5rem;padding:.75rem;overflow:auto}
+  .btn{display:inline-flex;align-items:center;gap:.5rem;padding:.55rem .85rem;border-radius:.6rem;border:1px solid var(--bd);background:#fff;cursor:pointer;user-select:none;transition:.15s}
+  .btn:hover{border-color:#c7ced6;box-shadow:0 1px 0 rgba(0,0,0,.03)}
+  .btn:active{transform:scale(.98);opacity:.95}
+  .btn[disabled]{opacity:.55;pointer-events:none}
+  .btn.pri{background:var(--pri);color:#fff;border-color:transparent}
+  input,textarea,select{width:100%;padding:.65rem;border:1px solid var(--bd);border-radius:.6rem;font-family:inherit}
+  textarea{min-height:140px;white-space:pre}
+  .card{background:#fff;border:1px solid var(--bd);border-radius:.9rem;padding:1rem;margin-top:12px}
+  .pill{border:1px solid var(--bd);border-radius:999px;padding:.18rem .5rem;background:#fff}
+  .ok{color:var(--ok)} .err{color:var(--err)} .muted{color:var(--mut)}
+  table{border-collapse:collapse;width:100%;background:#fff;border:1px solid var(--bd);border-radius:.6rem;overflow:hidden}
+  th,td{border-bottom:1px solid #eef2f7;padding:.5rem .6rem;font-size:.9rem;text-align:left}
+  th{background:#f8fafc}
+  tfoot td{font-weight:600;background:#fafafa}
+  pre{background:#fff;border:1px solid var(--bd);border-radius:.6rem;padding:.75rem;overflow:auto}
+  .tabs{display:flex;gap:.4rem;flex-wrap:wrap;margin:.3rem 0 0}
+  .tab{padding:.4rem .7rem;border:1px solid var(--bd);border-bottom:none;border-radius:.6rem .6rem 0 0;background:#fff;cursor:pointer}
+  .tab.active{background:#fff;border-color:#c7ced6}
+  .tabpan{display:none}.tabpan.active{display:block}
+  video{max-width:100%;border-radius:.6rem;border:1px solid var(--bd)}
+  .badge{display:inline-flex;gap:.4rem;align-items:center;padding:.2rem .5rem;border-radius:.5rem;background:#eef2ff;color:#1d4ed8;border:1px solid #c7d2fe}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>CKLASS — Resumen de Catálogo + Existencias</h1>
-  <p>Se muestra confirmación y conteo (sin listar completo). Incluye mapeo manual si es necesario y un <b>toggle de muestra</b> (10 líneas) para depurar.</p>
+  <h1>CKLASS — Cíclico</h1>
+  <div class="tabs">
+    <div class="tab active" data-tab="cat">1) Catálogo</div>
+    <div class="tab" data-tab="exist">2) Existencias</div>
+    <div class="tab" data-tab="scan">3) Escaneo</div>
+    <div class="tab" data-tab="rep">4) Reporte</div>
+    <div class="tab" data-tab="folio">5) Folios</div>
+  </div>
 
-  <!-- CARGA -->
-  <div class="card">
-    <h2>1) Cargar Catálogo</h2>
+  <!-- ========== 1) CATÁLOGO ========== -->
+  <div class="card tabpan active" id="pan-cat">
+    <h2>1) Catálogo Master (referencia)</h2>
     <div class="row" style="margin-bottom:.5rem">
-      <button id="btnLoad" class="btn">Cargar CSV</button>
+      <button id="btnLoad" class="btn pri">Cargar catálogo</button>
       <button id="btnBust" class="btn" title="Evita caché agregando ?v=timestamp">Forzar recarga</button>
       <span id="status" class="pill">—</span>
     </div>
-    <label class="mono" style="display:block;margin-bottom:.25rem">Ruta</label>
+    <label class="muted" style="display:block;margin-bottom:.25rem">Ruta</label>
     <input id="path" value="./static/catalogo-master.csv" />
     <div class="row" style="margin-top:.5rem;font-size:.92rem">
-      <div><b>HTTP:</b> <span id="http">—</span></div>
-      <div><b>Enc:</b> <span id="enc">—</span></div>
-      <div><b>Sep:</b> <span id="sep">—</span></div>
-      <div><b>Headers:</b> <span id="hdrs">—</span></div>
-      <div><b>Registros:</b> <span id="rows">—</span></div>
+      <span class="badge"><b>HTTP</b> <span id="http">—</span></span>
+      <span class="badge"><b>Enc</b> <span id="enc">—</span></span>
+      <span class="badge"><b>Sep</b> <span id="sep">—</span></span>
+      <span class="badge"><b>Headers</b> <span id="hdrs">—</span></span>
+      <span class="badge"><b>Registros</b> <span id="rows">—</span></span>
     </div>
-
-    <!-- Toggle de muestra -->
-    <div class="row" style="margin-top:.5rem">
+    <div class="row" style="margin-top:.6rem">
       <button id="btnToggleSample" class="btn" disabled>Ver 10 líneas de muestra</button>
-      <span class="muted">Solo para depurar. No se carga todo el catálogo en pantalla.</span>
+      <span class="muted">Solo para depurar; no se imprime todo el catálogo.</span>
     </div>
     <div id="sampleWrap" style="display:none; margin-top:.5rem">
       <pre id="sampleBox" class="mono">—</pre>
     </div>
+
+    <div id="mapperCard" class="card" style="display:none;margin-top:.8rem">
+      <h3>Mapear columnas (si no se detectaron)</h3>
+      <div class="row">
+        <div style="flex:1"><label>Modelo</label><select id="selMOD"></select></div>
+        <div style="flex:1"><label>Color</label><select id="selCOLOR"></select></div>
+        <div style="flex:1"><label>Talla</label><select id="selTALLA"></select></div>
+        <div style="flex:1"><label>Código barras (opcional)</label><select id="selBC"></select></div>
+      </div>
+      <div class="row" style="margin-top:.5rem">
+        <button id="btnConfirmMap" class="btn">Confirmar mapeo</button>
+        <span id="mapStatus" class="pill">—</span>
+      </div>
+    </div>
   </div>
 
-  <!-- MAPEADOR DE COLUMNAS (solo si no detecta) -->
-  <div id="mapperCard" class="card" style="display:none">
-    <h2>2) Mapear columnas</h2>
-    <p class="hint">Elige qué encabezado corresponde a cada campo. Luego pulsa <b>Confirmar mapeo</b>.</p>
-    <div class="row">
-      <div style="flex:1"><label>Modelo</label><select id="selMOD"></select></div>
-      <div style="flex:1"><label>Color</label><select id="selCOLOR"></select></div>
-      <div style="flex:1"><label>Talla</label><select id="selTALLA"></select></div>
-    </div>
-    <div class="row" style="margin-top:.5rem">
-      <button id="btnConfirmMap" class="btn">Confirmar mapeo</button>
-      <span id="mapStatus" class="pill">—</span>
-    </div>
-  </div>
-
-  <!-- PEGAR EXISTENCIAS -->
-  <div class="card">
-    <h2>3) Pegar existencias (inventario teórico)</h2>
-    <p class="mono">Formato por línea: <code>MODELO, COLOR ..... TALLA ..... CANT</code></p>
-    <pre class="mono" style="margin:.25rem 0 .5rem;background:#f8fafc;padding:.5rem;border:1px solid #e5e7eb;border-radius:.5rem">
+  <!-- ========== 2) EXISTENCIAS (teórico) ========== -->
+  <div class="card tabpan" id="pan-exist">
+    <h2>2) Pegar existencias (inventario teórico)</h2>
+    <p class="muted mono">Formato por línea: <code>MODELO, COLOR ....... TALLA ....... CANT</code></p>
+    <pre class="mono" style="margin:.25rem 0 .5rem;background:#f8fafc;padding:.5rem;border:1px solid #e5e7eb;border-radius:.6rem">
 601-16,NEGRO              270          1
-601-30,ROSA               260          1
-601-30,ROSA               265          1
-619-97,NEGRO              GEX          1
 </pre>
-    <textarea id="paste" placeholder="Pega aquí…"></textarea>
+    <textarea id="paste" placeholder="Pega aquí en el formato indicado (modelo,color,talla,cantidad)"></textarea>
     <div class="row" style="margin-top:.5rem">
-      <button id="btnProcesar" class="btn" disabled>Procesar existencias</button>
-      <button id="btnExportTeorico" class="btn" disabled>Exportar CSV (teórico)</button>
-      <span id="resumenTeo">—</span>
-    </div>
-  </div>
-
-  <!-- RESULTADO TEÓRICO -->
-  <div class="card">
-    <h2>4) Existencias teóricas</h2>
-    <div class="row">
-      <div><b>Claves:</b> <span id="nClaves">0</span></div>
-      <div><b>Piezas:</b> <span id="nPiezas">0</span></div>
-      <div><b>Líneas pegadas:</b> <span id="nLineas">0</span></div>
-      <div><b>Omitidos:</b> <span id="nOmitidos">0</span></div>
+      <button id="btnProcesar" class="btn pri" disabled>Procesar existencias</button>
+      <span id="resumenTeo" class="pill">—</span>
     </div>
     <div style="overflow:auto;margin-top:.5rem">
       <table>
@@ -110,275 +105,470 @@
       </table>
     </div>
   </div>
+
+  <!-- ========== 3) ESCANEO ========== -->
+  <div class="card tabpan" id="pan-scan">
+    <h2>3) Escaneo</h2>
+    <div class="row">
+      <div class="card" style="flex:1;min-width:280px">
+        <h3>Manual</h3>
+        <div class="row">
+          <input id="scanInput" placeholder="Teclea o pega código de barras…" />
+          <button id="btnAddScan" class="btn pri">Agregar</button>
+        </div>
+        <p class="muted" style="margin-top:.4rem">Enter agrega; acepta EAN/UPC alfanuméricos.</p>
+      </div>
+      <div class="card" style="flex:1;min-width:280px">
+        <h3>Cámara</h3>
+        <div class="row">
+          <button id="btnStartCam" class="btn">Iniciar cámara</button>
+          <button id="btnStopCam" class="btn" disabled>Detener</button>
+          <span id="camStatus" class="pill">—</span>
+        </div>
+        <video id="video" playsinline muted></video>
+        <p class="muted" style="margin-top:.4rem">Usa <code>BarcodeDetector</code> si está disponible; si no, permanece en manual.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Acumulado de escaneos</h3>
+      <div class="row">
+        <div><b>Items:</b> <span id="nScanItems">0</span></div>
+        <div><b>Piezas:</b> <span id="nScanQty">0</span></div>
+        <button id="btnClearScan" class="btn" style="margin-left:auto">Limpiar escaneos</button>
+      </div>
+      <div style="overflow:auto;margin-top:.5rem">
+        <table>
+          <thead><tr><th>Código</th><th>Modelo</th><th>Color</th><th>Talla</th><th style="text-align:right">Cantidad</th></tr></thead>
+          <tbody id="tbodyScan"><tr><td colspan="5">—</td></tr></tbody>
+          <tfoot><tr><td colspan="4" style="text-align:right">TOTAL</td><td id="totScan" style="text-align:right">0</td></tr></tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 4) REPORTE ========== -->
+  <div class="card tabpan" id="pan-rep">
+    <h2>4) Reporte (Escaneado vs Teórico)</h2>
+    <div class="row" style="margin-bottom:.5rem">
+      <button id="btnBuildRep" class="btn pri">Generar reporte</button>
+      <button id="btnExportRep" class="btn">Exportar CSV</button>
+      <span id="repStatus" class="pill">—</span>
+    </div>
+    <div class="row">
+      <div><b>Exactos:</b> <span id="repExactos">0</span></div>
+      <div><b>Faltantes:</b> <span id="repFalt">0</span></div>
+      <div><b>Sobrantes:</b> <span id="repSob">0</span></div>
+    </div>
+    <div style="overflow:auto;margin-top:.5rem">
+      <table>
+        <thead>
+          <tr><th>Modelo</th><th>Color</th><th>Talla</th><th style="text-align:right">Teórico</th><th style="text-align:right">Escaneado</th><th style="text-align:right">Diferencia</th></tr>
+        </thead>
+        <tbody id="tbodyRep"><tr><td colspan="6">—</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ========== 5) FOLIOS ========== -->
+  <div class="card tabpan" id="pan-folio">
+    <h2>5) Folios</h2>
+    <div class="row" style="margin-bottom:.5rem">
+      <input id="folioUsuario" placeholder="Usuario" style="flex:1" />
+      <input id="folioSucursal" placeholder="Sucursal" style="flex:1" />
+      <button id="btnGenFolio" class="btn pri">Generar folio</button>
+      <span id="folioBadge" class="pill">Sin folio</span>
+    </div>
+    <p class="muted">El folio y el acumulado de escaneos se guardan localmente. Más adelante conectamos Firestore. <!-- TODO Firebase --></p>
+
+    <div class="card">
+      <h3>Historial local</h3>
+      <div class="row">
+        <button id="btnSaveLocal" class="btn">Guardar estado</button>
+        <button id="btnLoadLocal" class="btn">Cargar estado</button>
+        <button id="btnClearLocal" class="btn">Borrar historial</button>
+      </div>
+      <pre id="localBox" class="mono" style="margin-top:.5rem">—</pre>
+    </div>
+  </div>
 </div>
 
 <script>
-(function(){
-  const $ = id => document.getElementById(id);
-  const norm = s => (s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase();
+/* ========= Helpers ========= */
+const $ = id => document.getElementById(id);
+const norm = s => (s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase();
+const key3 = (mod,col,tal)=> `${norm(mod)}|${norm(col)}|${norm(tal)}`;
 
-  /* ===== CSV utils ===== */
-  function detectCSV(text){
-    const lines = text.split(/\r\n|\n|\r/);
-    const first = lines[0] || '';
-    const m = /^sep\s*=\s*([,;|\t])\s*$/i.exec(first);
-    if (m) return { delim: m[1], dropFirst: true, lines };
-    const sample = lines.slice(0, 200).join('\n');
-    const counts = { '\t':(sample.match(/\t/g)||[]).length, ';':(sample.match(/;/g)||[]).length, ',':(sample.match(/,/g)||[]).length, '|':(sample.match(/\|/g)||[]).length };
-    const delim = Object.entries(counts).sort((a,b)=>b[1]-a[1])[0][0] || ',';
-    return { delim, dropFirst:false, lines };
-  }
-  function splitCSV(line, d){
-    const out=[]; let cur='', q=false;
-    for (let i=0;i<line.length;i++){
-      const ch=line[i];
-      if (ch === '"'){ if(q && line[i+1] === '"'){ cur+='"'; i++; } else { q=!q; } }
-      else if (!q && ch === d){ out.push(cur); cur=''; }
-      else { cur+=ch; }
-    }
-    out.push(cur); return out;
-  }
-  async function fetchDecoded(url){
-    const resp = await fetch(url, { cache:'no-store' });
-    const buf = await resp.arrayBuffer();
-    const b = new Uint8Array(buf);
-    let enc='utf-8';
-    if (b.length>=2){
-      if (b[0]===0xFF && b[1]===0xFE) enc='utf-16le';
-      else if (b[0]===0xFE && b[1]===0xFF) enc='utf-16be';
-      else if (b.length>=3 && b[0]===0xEF && b[1]===0xBB && b[2]===0xBF) enc='utf-8';
-    }
-    if (enc==='utf-8'){
-      let zeros=0; for(let i=0;i<Math.min(b.length,4096);i++) if(b[i]===0) zeros++;
-      if (zeros > b.length/10) enc='utf-16le';
-    }
-    let text; try{ text=new TextDecoder(enc).decode(buf); }catch{ enc='windows-1252'; text=new TextDecoder(enc).decode(buf); }
-    $('http').textContent = resp.status;
-    $('enc').textContent  = enc.toUpperCase();
-    if (!resp.ok) throw new Error('HTTP '+resp.status);
-    return text;
-  }
-
-  /* ===== Estado mínimo ===== */
-  const Catalog = {
-    sep:',',
-    headersRaw:[],
-    headersNorm:[],
-    idx:{ MOD:-1, COLOR:-1, TALLA:-1 },
-    rowCount:0,
-    sampleText:'' // <-- primeras 10 líneas de datos (sin encabezado)
+/* ========= Tabs ========= */
+document.querySelectorAll('.tab').forEach(t=>{
+  t.onclick=()=>{ document.querySelectorAll('.tab,.tabpan').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active'); $('pan-'+t.dataset.tab).classList.add('active');
   };
+});
 
-  const ALIASES = {
-    MOD:   ['MOD','MODELO','SKU','ESTILO','STYLE','ARTICULO','REFERENCIA','PRODUCTO'],
-    COLOR: ['COLOR','COL','CLR','COLOR DESCRIPCION','DESC COLOR'],
-    TALLA: ['TALLA','TALL','SIZE','MEDIDA','NUMERO','NUM']
+/* ========= CSV utils ========= */
+function detectCSV(text){
+  const lines = text.split(/\r\n|\n|\r/);
+  const first = lines[0] || '';
+  const m = /^sep\s*=\s*([,;|\t])\s*$/i.exec(first);
+  if (m) return { delim:m[1], dropFirst:true, lines };
+  const sample = lines.slice(0, 200).join('\n');
+  const counts = { '\t':(sample.match(/\t/g)||[]).length, ';':(sample.match(/;/g)||[]).length, ',':(sample.match(/,/g)||[]).length, '|':(sample.match(/\|/g)||[]).length };
+  const delim = Object.entries(counts).sort((a,b)=>b[1]-a[1])[0][0] || ',';
+  return { delim, dropFirst:false, lines };
+}
+function splitCSV(line, d){
+  const out=[]; let cur='', q=false;
+  for (let i=0;i<line.length;i++){
+    const ch=line[i];
+    if (ch === '"'){ if(q && line[i+1] === '"'){ cur+='"'; i++; } else { q=!q; } }
+    else if (!q && ch === d){ out.push(cur); cur=''; }
+    else { cur+=ch; }
+  }
+  out.push(cur); return out;
+}
+async function fetchDecoded(url){
+  const resp = await fetch(url, { cache:'no-store' });
+  const buf = await resp.arrayBuffer();
+  const b = new Uint8Array(buf);
+  let enc='utf-8';
+  if (b.length>=2){
+    if (b[0]===0xFF && b[1]===0xFE) enc='utf-16le';
+    else if (b[0]===0xFE && b[1]===0xFF) enc='utf-16be';
+    else if (b.length>=3 && b[0]===0xEF && b[1]===0xBB && b[2]===0xBF) enc='utf-8';
+  }
+  if (enc==='utf-8'){
+    let zeros=0; for(let i=0;i<Math.min(b.length,4096);i++) if(b[i]===0) zeros++;
+    if (zeros > b.length/10) enc='utf-16le';
+  }
+  let text; try{ text=new TextDecoder(enc).decode(buf); }catch{ enc='windows-1252'; text=new TextDecoder(enc).decode(buf); }
+  $('http').textContent = resp.status;
+  $('enc').textContent  = enc.toUpperCase();
+  if (!resp.ok) throw new Error('HTTP '+resp.status);
+  return text;
+}
+
+/* ========= Catálogo (estado) ========= */
+const Catalog = {
+  sep:',', headersRaw:[], headersNorm:[], rowCount:0, sampleText:'',
+  idx:{ MOD:-1, COLOR:-1, TALLA:-1, BC:-1 },
+  byBarcode:new Map(), // barcode -> {mod,color,talla}
+  byKey:new Map()      // key3 -> barcode
+};
+const ALIASES = {
+  MOD:['MOD','MODELO','SKU','ESTILO','STYLE','ARTICULO','REFERENCIA','PRODUCTO'],
+  COLOR:['COLOR','COL','CLR','COLOR DESCRIPCION','DESC COLOR'],
+  TALLA:['TALLA','TALL','SIZE','MEDIDA','NUMERO','NUM'],
+  BC:['CODIGO_BARRA','CODIGO DE BARRAS','CODIGO BARRA','BARCODE','EAN','EAN13','UPC','CODIGO','COD_BARRAS','CBARRAS']
+};
+function findIdx(headersNorm, who){
+  for (const a of ALIASES[who]) {
+    const p = headersNorm.indexOf(norm(a));
+    if (p !== -1) return p;
+  }
+  const patterns = {
+    MOD:[/MOD|MODELO|SKU|ESTILO|STYLE|ARTIC|REF|PROD/i],
+    COLOR:[/COLOR|COL|CLR/i],
+    TALLA:[/TALL|SIZE|MEDID|NUM(ERO)?/i],
+    BC:[/BAR|EAN|UPC|COD(IGO)?/i]
   };
+  for (let i=0;i<headersNorm.length;i++){
+    const h=headersNorm[i]; if (patterns[who].some(rx=>rx.test(h))) return i;
+  }
+  return -1;
+}
+function fillSelect(sel, headersRaw, selectedIdx){
+  sel.innerHTML = headersRaw.map((h,i)=>`<option value="${i}" ${i===selectedIdx?'selected':''}>${h}</option>`).join('');
+}
+function showMapper(headersRaw, idx){
+  $('mapperCard').style.display='block';
+  fillSelect($('selMOD'),headersRaw, idx.MOD===-1?0:idx.MOD);
+  fillSelect($('selCOLOR'),headersRaw, idx.COLOR===-1?0:idx.COLOR);
+  fillSelect($('selTALLA'),headersRaw, idx.TALLA===-1?0:idx.TALLA);
+  fillSelect($('selBC'),headersRaw, idx.BC===-1?0:idx.BC);
+  $('mapStatus').textContent='Selecciona y confirma';
+}
+function hideMapper(){ $('mapperCard').style.display='none'; }
 
-  function findIdx(headersNorm, who){
-    for (const a of ALIASES[who]) {
-      const p = headersNorm.indexOf(norm(a));
-      if (p !== -1) return p;
-    }
-    const patterns = {
-      MOD:   [/MOD|MODELO|SKU|ESTILO|STYLE|ARTIC|REF|PROD/i],
-      COLOR: [/COLOR|COL|CLR/i],
-      TALLA: [/TALL|SIZE|MEDID|NUM(ERO)?/i],
+/* ========= Cargar catálogo ========= */
+async function cargarCatalogo(){
+  const url = $('path').value.trim();
+  $('status').textContent='Descargando…';
+  $('sep').textContent=$('hdrs').textContent=$('rows').textContent='—';
+  $('btnToggleSample').disabled=true; $('sampleWrap').style.display='none';
+  Catalog.byBarcode.clear(); Catalog.byKey.clear();
+
+  try{
+    let text = await fetchDecoded(url);
+    if (text.charCodeAt(0)===0xFEFF) text = text.slice(1);
+    const det = detectCSV(text);
+    $('sep').textContent = det.delim === '\t' ? 'TAB' : det.delim;
+
+    let lines = det.lines;
+    if (det.dropFirst) lines = lines.slice(1);
+    lines = lines.filter(l=>l.trim().length>0);
+    if (!lines.length) throw new Error('Catálogo vacío');
+
+    const d=det.delim;
+    const headersRaw=splitCSV(lines[0], d);
+    const headersNorm=headersRaw.map(h=>norm(h));
+    let idx = {
+      MOD:findIdx(headersNorm,'MOD'),
+      COLOR:findIdx(headersNorm,'COLOR'),
+      TALLA:findIdx(headersNorm,'TALLA'),
+      BC:findIdx(headersNorm,'BC'),
     };
-    for (let i=0;i<headersNorm.length;i++){
-      const h = headersNorm[i];
-      if (patterns[who].some(rx => rx.test(h))) return i;
-    }
-    return -1;
-  }
-  const tryMapIdx = headersNorm => ({
-    MOD:   findIdx(headersNorm,'MOD'),
-    COLOR: findIdx(headersNorm,'COLOR'),
-    TALLA: findIdx(headersNorm,'TALLA')
-  });
 
-  function fillSelect(sel, headersRaw, selectedIdx){
-    sel.innerHTML = headersRaw.map((h,i)=>`<option value="${i}" ${i===selectedIdx?'selected':''}>${h}</option>`).join('');
-  }
-  function showMapper(headersRaw, idx){
-    $('mapperCard').style.display = 'block';
-    fillSelect($('selMOD'),   headersRaw, idx.MOD   === -1 ? 0 : idx.MOD);
-    fillSelect($('selCOLOR'), headersRaw, idx.COLOR === -1 ? 0 : idx.COLOR);
-    fillSelect($('selTALLA'), headersRaw, idx.TALLA === -1 ? 0 : idx.TALLA);
-    $('mapStatus').textContent = 'Selecciona y confirma';
-  }
-  function hideMapper(){ $('mapperCard').style.display = 'none'; }
+    Catalog.sep=d; Catalog.headersRaw=headersRaw; Catalog.headersNorm=headersNorm; Catalog.idx=idx;
+    Catalog.rowCount=Math.max(0, lines.length-1);
+    $('hdrs').textContent=headersRaw.join(' | ');
+    $('rows').textContent=Catalog.rowCount;
 
-  /* ===== Cargar (resumen + muestra opcional) ===== */
-  async function cargarCatalogo(){
-    const url = $('path').value.trim();
-    $('status').textContent = 'Descargando…';
-    $('sep').textContent = $('hdrs').textContent = $('rows').textContent = '—';
-    $('btnToggleSample').disabled = true;
-    $('sampleWrap').style.display = 'none';
-    try{
-      let text = await fetchDecoded(url);
-      if (text.charCodeAt(0)===0xFEFF) text = text.slice(1);
+    // sample (10)
+    const sample=[]; for(let i=1;i<Math.min(lines.length,11);i++) sample.push(lines[i]);
+    Catalog.sampleText=sample.join('\n'); $('btnToggleSample').disabled = !Catalog.sampleText;
 
-      const det = detectCSV(text);
-      $('sep').textContent = det.delim === '\t' ? 'TAB' : det.delim;
-
-      let lines = det.lines;
-      if (det.dropFirst) lines = lines.slice(1);
-      lines = lines.filter(l=>l.trim().length>0);
-      if (!lines.length) throw new Error('Catálogo vacío');
-
-      const d = det.delim;
-      const headersRaw  = splitCSV(lines[0], d);
-      const headersNorm = headersRaw.map(h=>norm(h));
-      const idx = tryMapIdx(headersNorm);
-
-      Catalog.sep = d;
-      Catalog.headersRaw  = headersRaw;
-      Catalog.headersNorm = headersNorm;
-      Catalog.idx = idx;
-      Catalog.rowCount = Math.max(0, lines.length - 1);
-
-      // Guardar SOLO una muestra de 10 líneas (sin encabezado)
-      const sampleLines = [];
-      for (let i = 1; i < Math.min(lines.length, 11); i++) {
-        sampleLines.push(lines[i]);
-      }
-      Catalog.sampleText = sampleLines.join('\n');
-
-      $('hdrs').textContent = headersRaw.join(' | ');
-      $('rows').textContent = Catalog.rowCount;
-
-      $('btnToggleSample').disabled = Catalog.sampleText.length === 0;
-
-      if (idx.MOD<0 || idx.COLOR<0 || idx.TALLA<0){
-        $('status').innerHTML = '<span class="ok">Cargado. Falta mapear columnas.</span>';
-        showMapper(headersRaw, idx);
-      } else {
-        $('status').innerHTML = '<span class="ok">Cargado correctamente</span>';
-        hideMapper();
-        $('btnProcesar').disabled = false;
-      }
-    }catch(e){
-      $('status').innerHTML = '<span class="err">❌ '+(e?.message||e)+'</span>';
-      $('btnProcesar').disabled = true;
+    // Construir índices (en streaming ligero)
+    if (idx.MOD<0 || idx.COLOR<0 || idx.TALLA<0){
+      $('status').innerHTML='<span class="ok">Cargado. Falta mapear columnas.</span>';
+      showMapper(headersRaw, idx);
+    } else {
+      buildIndexes(lines, d, idx);
+      $('status').innerHTML='<span class="ok">Cargado correctamente</span>';
       hideMapper();
-      alert('Error cargando catálogo: ' + (e?.message||e));
+      $('btnProcesar').disabled=false;
+    }
+  }catch(e){
+    $('status').innerHTML='<span class="err">❌ '+(e?.message||e)+'</span>';
+    $('btnProcesar').disabled=true; hideMapper();
+    alert('Error cargando catálogo: '+(e?.message||e));
+  }
+}
+function buildIndexes(lines, d, idx){
+  Catalog.byBarcode.clear(); Catalog.byKey.clear();
+  for(let i=1;i<lines.length;i++){
+    const cols=splitCSV(lines[i], d);
+    const mod=(cols[idx.MOD]??'').trim(), color=(cols[idx.COLOR]??'').trim(), talla=(cols[idx.TALLA]??'').trim();
+    const bc= idx.BC>=0 ? (cols[idx.BC]??'').trim() : '';
+    if(!mod||!color||!talla) continue;
+    const k=key3(mod,color,talla);
+    if (bc) Catalog.byBarcode.set(bc,{mod,color,talla});
+    if (!Catalog.byKey.has(k)) Catalog.byKey.set(k, bc || '');
+  }
+}
+
+/* mapper manual */
+$('btnConfirmMap').onclick=()=>{
+  Catalog.idx.MOD=Number($('selMOD').value);
+  Catalog.idx.COLOR=Number($('selCOLOR').value);
+  Catalog.idx.TALLA=Number($('selTALLA').value);
+  Catalog.idx.BC=Number($('selBC').value);
+  $('mapStatus').textContent=`Listo: MOD=${Catalog.idx.MOD}, COLOR=${Catalog.idx.COLOR}, TALLA=${Catalog.idx.TALLA}, BC=${Catalog.idx.BC}`;
+  $('status').innerHTML='<span class="ok">OK (mapeo manual)</span>';
+  // reconstruir índices con las nuevas posiciones
+  const url=$('path').value.trim();
+  fetchDecoded(url).then(text=>{
+    const det=detectCSV(text); let lines=det.lines; if(det.dropFirst) lines=lines.slice(1);
+    buildIndexes(lines, det.delim, Catalog.idx);
+  });
+  $('btnProcesar').disabled=false;
+};
+
+/* sample toggle */
+let sampleVisible=false;
+$('btnToggleSample').onclick=()=>{
+  if(!Catalog.sampleText) return;
+  sampleVisible=!sampleVisible;
+  $('sampleWrap').style.display = sampleVisible?'block':'none';
+  $('sampleBox').textContent = Catalog.sampleText || '—';
+  $('btnToggleSample').textContent = sampleVisible?'Ocultar muestra':'Ver 10 líneas de muestra';
+};
+
+/* ========= Existencias (teórico) ========= */
+let EXIST_TEO = new Map(); // key3 -> cantidad
+function parseExistencias(text){
+  const map=new Map(); const lines=(text||'').split(/\r\n|\n|\r/).map(s=>s.trim()).filter(Boolean);
+  let nLineas=0, nOmitidos=0, nPiezas=0;
+  for(const line of lines){
+    nLineas++;
+    let modelo='',resto='';
+    const coma=line.indexOf(','); if (coma>=0){ modelo=line.slice(0,coma).trim(); resto=line.slice(coma+1).trim(); } else { nOmitidos++; continue; }
+    const m=/^(.*\S)\s+(\S+)\s+(\d+(?:[.,]\d+)?)$/.exec(resto);
+    if(!m){
+      const m2=/^(.*\S)\s+(\S+)$/.exec(resto); if(!m2){ nOmitidos++; continue; }
+      const color=(m2[1]||'').trim(), talla=(m2[2]||'').trim(), cant=1;
+      const k=key3(modelo,color,talla); map.set(k,(map.get(k)||0)+cant); nPiezas+=cant;
+    }else{
+      const color=(m[1]||'').trim(), talla=(m[2]||'').trim(), cant=Number((m[3]||'1').replace(',','.'))||1;
+      const k=key3(modelo,color,talla); map.set(k,(map.get(k)||0)+cant); nPiezas+=cant;
     }
   }
+  return { map, nLineas, nOmitidos, nPiezas, nClaves: map.size };
+}
+function renderTeorico(map){
+  let html=''; let total=0;
+  for(const [k,c] of map.entries()){ const [m,col,t]=k.split('|'); total+=c; html+=`<tr><td>${m}</td><td>${col}</td><td>${t}</td><td style="text-align:right">${c}</td></tr>`; }
+  $('tbodyTeo').innerHTML= html || '<tr><td colspan="4">—</td></tr>';
+  $('totTeo').textContent=total;
+}
 
-  // Toggle muestra
-  let sampleVisible = false;
-  $('btnToggleSample').addEventListener('click', ()=>{
-    if (!Catalog.sampleText) return;
-    sampleVisible = !sampleVisible;
-    $('sampleWrap').style.display = sampleVisible ? 'block' : 'none';
-    $('sampleBox').textContent = Catalog.sampleText || '—';
-    $('btnToggleSample').textContent = sampleVisible ? 'Ocultar muestra' : 'Ver 10 líneas de muestra';
-  });
-
-  // Confirmar mapeo manual
-  $('btnConfirmMap').addEventListener('click', ()=>{
-    Catalog.idx.MOD   = Number($('selMOD').value);
-    Catalog.idx.COLOR = Number($('selCOLOR').value);
-    Catalog.idx.TALLA = Number($('selTALLA').value);
-    $('mapStatus').textContent = `Listo: MOD=${Catalog.idx.MOD}, COLOR=${Catalog.idx.COLOR}, TALLA=${Catalog.idx.TALLA}`;
-    $('status').innerHTML = '<span class="ok">OK (mapeo manual)</span>';
-    $('btnProcesar').disabled = false;
-  });
-
-  /* ===== Pegado existencias ===== */
-  const key3 = (mod,col,tal)=> `${norm(mod)}|${norm(col)}|${norm(tal)}`;
-  function parseExistenciasText(text){
-    const map = new Map(); // key -> cant
-    const lines = (text||'').split(/\r\n|\n|\r/).map(s=>s.trim()).filter(Boolean);
-    let nLineas=0, nOmitidos=0, nPiezas=0;
-
-    for(const line of lines){
-      nLineas++;
-      let modelo='', resto='';
-      const coma = line.indexOf(',');
-      if (coma >= 0){
-        modelo = line.slice(0, coma).trim();
-        resto  = line.slice(coma+1).trim();
-      } else { nOmitidos++; continue; }
-
-      const m = /^(.*\S)\s+(\S+)\s+(\d+(?:[.,]\d+)?)$/.exec(resto);
-      if(!m){
-        const m2 = /^(.*\S)\s+(\S+)$/.exec(resto);
-        if(!m2){ nOmitidos++; continue; }
-        const color = (m2[1]||'').trim();
-        const talla = (m2[2]||'').trim();
-        const cant  = 1;
-        const k = key3(modelo,color,talla);
-        map.set(k, (map.get(k)||0) + cant);
-        nPiezas += cant;
-      }else{
-        const color = (m[1]||'').trim();
-        const talla = (m[2]||'').trim();
-        const cant  = Number((m[3]||'1').replace(',','.')) || 1;
-        const k = key3(modelo,color,talla);
-        map.set(k, (map.get(k)||0) + cant);
-        nPiezas += cant;
-      }
-    }
-    return { agg:map, nLineas, nOmitidos, nPiezas, nClaves: map.size };
+/* ========= Escaneo ========= */
+const SCANS = new Map(); // barcode -> qty
+function addScan(code){
+  code=String(code||'').trim(); if(!code) return;
+  const info = Catalog.byBarcode.get(code);
+  if(!info){ alert('Código no está en Catálogo: '+code); return; }
+  SCANS.set(code, (SCANS.get(code)||0)+1);
+  renderScans();
+}
+function renderScans(){
+  let html=''; let total=0;
+  for(const [bc,qty] of SCANS.entries()){
+    const info=Catalog.byBarcode.get(bc) || {};
+    total+=qty;
+    html += `<tr><td class="mono">${bc}</td><td>${info?.mod||''}</td><td>${info?.color||''}</td><td>${info?.talla||''}</td><td style="text-align:right">${qty}</td></tr>`;
   }
-  function renderTeorico(aggMap){
-    let html=''; let total=0;
-    for(const [k, cant] of aggMap.entries()){
-      const [mm,cc,tt] = k.split('|');
-      total += cant;
-      html += `<tr><td>${mm}</td><td>${cc}</td><td>${tt}</td><td style="text-align:right">${cant}</td></tr>`;
+  $('tbodyScan').innerHTML = html || '<tr><td colspan="5">—</td></tr>';
+  $('totScan').textContent=total; $('nScanQty').textContent=total; $('nScanItems').textContent=SCANS.size;
+}
+
+/* manual */
+$('btnAddScan').onclick=()=>{ addScan($('scanInput').value); $('scanInput').value=''; $('scanInput').focus(); };
+$('scanInput').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); $('btnAddScan').click(); }});
+$('btnClearScan').onclick=()=>{ if(confirm('¿Limpiar escaneos?')){ SCANS.clear(); renderScans(); } };
+
+/* cámara */
+let stream=null, detector=null, raf=null;
+$('btnStartCam').onclick=async()=>{
+  try{
+    if ('BarcodeDetector' in window) detector = new window.BarcodeDetector({ formats:['ean_13','ean_8','upc_a','upc_e','code_128','code_39','codabar','itf','qr_code'] });
+    stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' }, audio:false });
+    $('video').srcObject=stream; await $('video').play();
+    $('camStatus').textContent = detector ? 'Detector activo' : 'Sin BarcodeDetector (modo manual)';
+    $('btnStopCam').disabled=false;
+
+    if (detector) loopDetect();
+  }catch(e){ alert('No se pudo iniciar la cámara: '+(e?.message||e)); }
+};
+$('btnStopCam').onclick=()=>{
+  if (raf) cancelAnimationFrame(raf);
+  if (stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+  $('video').srcObject=null; $('btnStopCam').disabled=true; $('camStatus').textContent='—';
+};
+async function loopDetect(){
+  if (!detector || !stream) return;
+  try{
+    const codes = await detector.detect($('video'));
+    if (codes && codes.length){
+      for(const c of codes){ addScan(c.rawValue); }
     }
-    $('tbodyTeo').innerHTML = html || '<tr><td colspan="4">—</td></tr>';
-    $('totTeo').textContent = total;
-    return total;
-  }
-  function exportTeoricoCSV(aggMap){
-    const rows = [['MODELO','COLOR','TALLA','CANTIDAD']];
-    for(const [k,c] of aggMap.entries()){
-      const [mm,cc,tt] = k.split('|');
-      rows.push([mm,cc,tt,String(c)]);
-    }
-    const csv = rows.map(r=>r.map(v=>{
-      v = v ?? '';
-      if (/[",;\t]/.test(v)) return '"'+v.replace(/"/g,'""')+'"';
-      return v;
-    }).join(',')).join('\r\n');
-    const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'existencias_teorico.csv';
-    document.body.appendChild(a); a.click(); a.remove();
+  }catch{}
+  raf = requestAnimationFrame(loopDetect);
+}
+
+/* ========= Reporte ========= */
+function buildReporte(){
+  if (!EXIST_TEO || EXIST_TEO.size===0){ alert('Primero procesa existencias (teórico).'); return; }
+  const escPorKey = new Map(); // key3 -> qty (convertir scans a key por catálogo)
+  for(const [bc,qty] of SCANS.entries()){
+    const info = Catalog.byBarcode.get(bc);
+    if(!info) continue;
+    const k = key3(info.mod, info.color, info.talla);
+    escPorKey.set(k, (escPorKey.get(k)||0)+qty);
   }
 
-  /* ===== Eventos ===== */
-  $('btnLoad').addEventListener('click', cargarCatalogo);
-  $('btnBust').addEventListener('click', ()=>{
-    const u = $('path').value.trim();
-    $('path').value = u + (u.includes('?')?'&':'?') + 'v=' + Date.now();
+  let exactos=0, falt=0, sob=0, html='';
+  const allKeys = new Set([...EXIST_TEO.keys(), ...escPorKey.keys()]);
+  for(const k of allKeys){
+    const teo = EXIST_TEO.get(k)||0;
+    const esc = escPorKey.get(k)||0;
+    const diff = esc - teo;
+    const [m,c,t] = k.split('|');
+    html += `<tr><td>${m}</td><td>${c}</td><td>${t}</td>
+      <td style="text-align:right">${teo}</td>
+      <td style="text-align:right">${esc}</td>
+      <td style="text-align:right;color:${diff===0?'#111':(diff<0?'#b91c1c':'#047857')}">${diff}</td></tr>`;
+    if (diff===0) exactos++; else if (diff<0) falt++; else sob++;
+  }
+  $('tbodyRep').innerHTML = html || '<tr><td colspan="6">—</td></tr>';
+  $('repExactos').textContent=exactos; $('repFalt').textContent=falt; $('repSob').textContent=sob;
+  $('repStatus').textContent = `Listo (${allKeys.size} claves)`;
+  // guardar snapshot del reporte
+  window._reporte = { escPorKey, exactos, falt, sob };
+}
+function exportReporteCSV(){
+  const rows=[['FOLIO','USUARIO','SUCURSAL','FECHA','MODELO','COLOR','TALLA','TEORICO','ESCANEADO','DIFERENCIA']];
+  const meta = currentFolioMeta();
+  const tbody = $('tbodyRep').querySelectorAll('tr');
+  tbody.forEach(tr=>{
+    const tds = tr.querySelectorAll('td'); if (tds.length!==6) return;
+    const [mod,col,ta,teo,esc,dif]=[...tds].map(td=>td.textContent);
+    rows.push([meta.id, meta.usuario, meta.sucursal, meta.fecha, mod, col, ta, teo, esc, dif]);
   });
-  $('btnProcesar').addEventListener('click', ()=>{
-    if (!Catalog.headersRaw.length){ alert('Primero carga el Catálogo.'); return; }
-    if (Catalog.idx.MOD<0 || Catalog.idx.COLOR<0 || Catalog.idx.TALLA<0){
-      $('mapperCard').scrollIntoView({behavior:'smooth'}); return;
-    }
-    const { agg, nLineas, nOmitidos, nPiezas, nClaves } = parseExistenciasText( $('paste').value );
-    $('nClaves').textContent  = nClaves;
-    $('nPiezas').textContent  = nPiezas;
-    $('nLineas').textContent  = nLineas;
-    $('nOmitidos').textContent= nOmitidos;
-    renderTeorico(agg);
-    $('resumenTeo').textContent = nClaves ? `OK: ${nClaves} claves · ${nPiezas} piezas` : '—';
-    $('btnExportTeorico').disabled = nClaves === 0;
-    window._existTeorico = agg;
-  });
-  $('btnExportTeorico').addEventListener('click', ()=>{
-    if (!window._existTeorico) return;
-    exportTeoricoCSV(window._existTeorico);
-  });
-})();
+  const csv = rows.map(r=>r.map(v=>{
+    v=v??''; return /[",;\t]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v;
+  }).join(',')).join('\r\n');
+  downloadBlob(csv, 'reporte_ciclico.csv', 'text/csv;charset=utf-8');
+}
+function downloadBlob(text, name, type){
+  const blob = new Blob([text], {type}); const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),500);
+}
+
+/* ========= Folios (local) ========= */
+function genId(){ return 'F'+new Date().toISOString().replace(/[-:.TZ]/g,'').slice(0,14)+'-'+Math.random().toString(36).slice(2,7).toUpperCase(); }
+function currentFolioMeta(){
+  const id = localStorage.getItem('folio:id')||'';
+  const usuario = localStorage.getItem('folio:usuario')||'';
+  const sucursal= localStorage.getItem('folio:sucursal')||'';
+  const fecha   = localStorage.getItem('folio:fecha')||'';
+  return {id,usuario,sucursal,fecha};
+}
+$('btnGenFolio').onclick=()=>{
+  const usuario=$('folioUsuario').value.trim();
+  const sucursal=$('folioSucursal').value.trim();
+  const id=genId(), fecha=new Date().toLocaleString();
+  localStorage.setItem('folio:id', id);
+  localStorage.setItem('folio:usuario', usuario);
+  localStorage.setItem('folio:sucursal', sucursal);
+  localStorage.setItem('folio:fecha', fecha);
+  $('folioBadge').textContent = `Folio activo: ${id}`;
+};
+$('btnSaveLocal').onclick=()=>{
+  const meta=currentFolioMeta();
+  const data={ meta, teo:[...EXIST_TEO.entries()], scans:[...SCANS.entries()] };
+  localStorage.setItem('ciclico:estado', JSON.stringify(data));
+  $('localBox').textContent='Guardado: '+new Date().toLocaleString();
+};
+$('btnLoadLocal').onclick=()=>{
+  const raw=localStorage.getItem('ciclico:estado');
+  if(!raw){ $('localBox').textContent='Sin datos.'; return; }
+  try{
+    const data=JSON.parse(raw);
+    EXIST_TEO=new Map(data.teo||[]);
+    SCANS.clear(); (data.scans||[]).forEach(([k,v])=>SCANS.set(k,v));
+    renderTeorico(EXIST_TEO); renderScans();
+    $('localBox').textContent='Cargado: '+new Date().toLocaleString();
+  }catch{ $('localBox').textContent='Error al cargar.'; }
+};
+$('btnClearLocal').onclick=()=>{ localStorage.removeItem('ciclico:estado'); $('localBox').textContent='Historial borrado.'; };
+
+/* ========= Eventos principales ========= */
+$('btnLoad').onclick=cargarCatalogo;
+$('btnBust').onclick=()=>{ const u=$('path').value.trim(); $('path').value = u+(u.includes('?')?'&':'?')+'v='+Date.now(); };
+
+$('btnProcesar').onclick=()=>{
+  if (!Catalog.headersRaw.length){ alert('Primero carga el catálogo.'); return; }
+  const r = parseExistencias($('paste').value);
+  EXIST_TEO = r.map;
+  renderTeorico(EXIST_TEO);
+  $('resumenTeo').textContent = r.nClaves ? `OK: ${r.nClaves} claves · ${r.nPiezas} piezas` : '—';
+};
+
+$('btnBuildRep').onclick=buildReporte;
+$('btnExportRep').onclick=exportReporteCSV);
+
+/* ========= Fin ========= */
 </script>
 </body>
 </html>
