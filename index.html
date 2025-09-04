@@ -1,114 +1,120 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>CKLASS — Catálogo + Pegar existencias</title>
-  <style>
-    :root{--b:#111;--m:#f6f7f9;--bd:#d0d7de;--mut:#6b7280}
-    *{box-sizing:border-box} body{font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;background:var(--m);color:var(--b);margin:0}
-    .wrap{max-width:1100px;margin:0 auto;padding:16px}
-    h1{margin:0 0 8px;font-size:24px}
-    h2{margin:0 0 8px;font-size:18px}
-    p{margin:0 0 12px;color:var(--mut)}
-    .row{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
-    .btn{display:inline-flex;align-items:center;gap:.5rem;padding:.5rem .8rem;border-radius:.5rem;border:1px solid var(--bd);background:#fff;cursor:pointer;user-select:none}
-    .btn:active{transform:scale(.97);opacity:.9}
-    .btn[disabled]{opacity:.6;pointer-events:none}
-    .ok{color:#047857}.err{color:#b91c1c}
-    input,textarea{width:100%;padding:.6rem;border:1px solid var(--bd);border-radius:.5rem;font-family:inherit}
-    textarea{min-height:160px;white-space:pre}
-    pre{background:#fff;border:1px solid var(--bd);border-radius:.5rem;padding:.75rem;overflow:auto}
-    .card{background:#fff;border:1px solid var(--bd);border-radius:.75rem;padding:1rem;margin-top:12px}
-    code{background:#eef2f7;border:1px solid #e5e7eb;border-radius:.25rem;padding:.05rem .3rem}
-    table{border-collapse:collapse;width:100%;background:#fff;border:1px solid var(--bd);border-radius:.5rem;overflow:hidden}
-    th,td{border-bottom:1px solid #eef2f7;padding:.45rem .55rem;font-size:.9rem;text-align:left}
-    th{background:#f8fafc}
-    tfoot td{font-weight:600;background:#fafafa}
-    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>CKLASS — Catálogo Master (consulta) + Existencias (teórico)</title>
+<style>
+  :root{--b:#111;--m:#f6f7f9;--bd:#d0d7de;--mut:#6b7280}
+  *{box-sizing:border-box} body{font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;background:var(--m);color:var(--b);margin:0}
+  .wrap{max-width:1200px;margin:0 auto;padding:16px}
+  h1{margin:0 0 8px;font-size:24px} h2{margin:0 0 8px;font-size:18px}
+  p{margin:0 0 10px;color:var(--mut)}
+  .row{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+  .btn{display:inline-flex;align-items:center;gap:.5rem;padding:.5rem .8rem;border-radius:.5rem;border:1px solid var(--bd);background:#fff;cursor:pointer}
+  .btn:active{transform:scale(.97);opacity:.9}
+  .btn[disabled]{opacity:.6;pointer-events:none}
+  input,textarea{width:100%;padding:.6rem;border:1px solid var(--bd);border-radius:.5rem;font-family:inherit}
+  textarea{min-height:160px;white-space:pre}
+  .card{background:#fff;border:1px solid var(--bd);border-radius:.75rem;padding:1rem;margin-top:12px}
+  table{border-collapse:collapse;width:100%;background:#fff;border:1px solid var(--bd);border-radius:.5rem;overflow:hidden}
+  th,td{border-bottom:1px solid #eef2f7;padding:.45rem .55rem;font-size:.9rem;text-align:left}
+  th{background:#f8fafc} tfoot td{font-weight:600;background:#fafafa}
+  .ok{color:#047857}.err{color:#b91c1c}.mono{font-family:ui-monospace,Menlo,Consolas,monospace}
+  .pill{border:1px solid var(--bd);border-radius:.5rem;padding:.15rem .4rem;background:#fff}
+</style>
 </head>
 <body>
 <div class="wrap">
-  <h1>CKLASS — Catálogo + Pegar existencias</h1>
-  <p>1) Carga el catálogo desde <code>./static/catalogo-master.csv</code>. 2) Pega tus existencias (código, cantidad). 3) Exporta el resultado.</p>
+  <h1>CKLASS — Catálogo Master (consulta) + Existencias (teórico)</h1>
+  <p>Flujo etapa 1: Cargar Catálogo Master → Pegar existencias (MODELO, COLOR, TALLA, CANT). El **catálogo** es la base de referencia; luego (etapa 2) se escaneará código de barras para cruzar contra existencias.</p>
 
-  <!-- CARGA DE CATÁLOGO -->
+  <!-- 1) CARGA CATÁLOGO -->
   <div class="card">
-    <h2>1) Cargar catálogo</h2>
+    <h2>1) Cargar Catálogo Master</h2>
     <div class="row" style="margin-bottom:.5rem">
-      <button id="btnLoad" class="btn" type="button">Cargar CSV</button>
-      <button id="btnBust" class="btn" type="button" title="Evita caché agregando ?v=timestamp">Forzar recarga</button>
-      <span id="status">—</span>
+      <button id="btnLoad" class="btn">Cargar CSV</button>
+      <button id="btnBust" class="btn" title="Evita caché agregando ?v=timestamp">Forzar recarga</button>
+      <span id="status" class="pill">—</span>
     </div>
-    <label for="path" style="display:block;margin-bottom:.25rem;color:#374151;font-size:.9rem">Ruta del catálogo</label>
+    <label class="mono" style="display:block;margin-bottom:.25rem">Ruta</label>
     <input id="path" value="./static/catalogo-master.csv" />
-    <div class="row" style="margin-top:.5rem">
+    <div class="row" style="margin-top:.5rem;font-size:.92rem">
       <div><b>HTTP:</b> <span id="http">—</span></div>
-      <div><b>CT:</b> <span id="ct">—</span></div>
       <div><b>Enc:</b> <span id="enc">—</span></div>
       <div><b>Sep:</b> <span id="sep">—</span></div>
       <div><b>Headers:</b> <span id="hdrs">—</span></div>
       <div><b>Filas:</b> <span id="rows">—</span></div>
+      <div><b>Llaves:</b> <span class="mono">barcode→(mod,color,talla) · (mod,color,talla)→barcode</span></div>
     </div>
   </div>
 
-  <!-- PEGAR EXISTENCIAS -->
+  <!-- 2) PEGAR EXISTENCIAS (teórico) -->
   <div class="card">
-    <h2>2) Pegar existencias</h2>
-    <p class="mono">Formatos válidos por línea: <code>CODIGO, CANT</code> | <code>CODIGO;CANT</code> | <code>CODIGO &lt;TAB&gt; CANT</code> | <code>CODIGO CANT</code> | <code>CODIGO</code> (asume 1)</p>
-    <textarea id="paste" placeholder="Ejemplos:
-7501055312345, 3
-7501055367890 2
-7501055300001
-"></textarea>
+    <h2>2) Pegar existencias (inventario teórico)</h2>
+    <p class="mono">Formato por línea: <code>MODELO, COLOR ..... TALLA ..... CANT</code></p>
+    <pre class="mono" style="margin:.25rem 0 .5rem;background:#f8fafc;padding:.5rem;border:1px solid #e5e7eb;border-radius:.5rem">
+601-16,NEGRO              270          1
+601-30,ROSA               260          1
+601-30,ROSA               265          1
+619-97,NEGRO              GEX          1
+</pre>
+    <textarea id="paste" placeholder="Pega aquí…"></textarea>
     <div class="row" style="margin-top:.5rem">
-      <button id="btnProcesar" class="btn" type="button" disabled>Procesar pegado</button>
-      <button id="btnExport" class="btn" type="button" disabled>Exportar CSV (resultado)</button>
-      <span id="resumen">—</span>
+      <button id="btnProcesar" class="btn" disabled>Procesar existencias</button>
+      <button id="btnExportTeorico" class="btn" disabled>Exportar CSV (teórico)</button>
+      <span id="resumenTeo">—</span>
     </div>
   </div>
 
-  <!-- RESULTADOS -->
+  <!-- 3) PREVIEW/RESULTADO TEÓRICO -->
   <div class="card">
-    <h2>3) Resultado (match con catálogo)</h2>
+    <h2>3) Existencias teóricas (agrupadas por MODELO, COLOR, TALLA)</h2>
     <div class="row">
-      <div><b>Renglones:</b> <span id="renglones">0</span></div>
-      <div><b>Piezas totales:</b> <span id="piezas">0</span></div>
-      <div><b>No encontrados:</b> <span id="nNo">0</span></div>
+      <div><b>Claves:</b> <span id="nClaves">0</span></div>
+      <div><b>Piezas:</b> <span id="nPiezas">0</span></div>
+      <div><b>Líneas pegadas:</b> <span id="nLineas">0</span></div>
+      <div><b>Omitidos:</b> <span id="nOmitidos">0</span></div>
     </div>
-    <div id="noEncontrados" class="mono" style="margin:.5rem 0 .25rem;color:#b91c1c">—</div>
-    <div style="overflow:auto">
-      <table id="tbl">
+    <div style="overflow:auto;margin-top:.5rem">
+      <table>
         <thead>
-          <tr>
-            <th>Código</th><th>Modelo</th><th>Color</th><th>Talla</th><th style="text-align:right">Cantidad</th>
-          </tr>
+          <tr><th>Modelo</th><th>Color</th><th>Talla</th><th style="text-align:right">Cantidad</th></tr>
         </thead>
-        <tbody id="tbody">
-          <tr><td colspan="5">—</td></tr>
-        </tbody>
+        <tbody id="tbodyTeo"><tr><td colspan="4">—</td></tr></tbody>
         <tfoot>
-          <tr><td colspan="4" style="text-align:right">TOTAL</td><td id="tfootTotal" style="text-align:right">0</td></tr>
+          <tr><td colspan="3" style="text-align:right">TOTAL</td><td id="totTeo" style="text-align:right">0</td></tr>
         </tfoot>
       </table>
     </div>
+  </div>
+
+  <!-- 4) CRUCE POR ESCANEO (preparado para etapa 2) -->
+  <div class="card">
+    <h2>4) Escaneo (próxima etapa)</h2>
+    <p>Este bloque queda listo para conectar el lector: se mapeará el <b>código de barras escaneado</b> → (modelo, color, talla), y se cruzará contra las existencias teóricas para obtener faltantes/sobrantes.</p>
+    <div class="row">
+      <input id="scanInput" placeholder="(próximamente) Escanea código de barras…" disabled />
+      <button id="btnCruzar" class="btn" disabled>Generar faltantes/sobrantes</button>
+    </div>
+    <p style="margin-top:.5rem;color:#888">Cuando lo activemos, aquí aparecerán los resultados del cruce.</p>
   </div>
 </div>
 
 <script>
 (function(){
-  /* ========== Utilidades comunes ========== */
+  /* =========== Utilidades generales =========== */
   const $ = id => document.getElementById(id);
   const norm = s => (s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase();
+  const key3 = (mod,col,tal)=> `${norm(mod)}|${norm(col)}|${norm(tal)}`;
 
   function detectCSV(text){
     const lines = text.split(/\r\n|\n|\r/);
     const first = lines[0] || '';
     const m = /^sep\s*=\s*([,;|\t])\s*$/i.exec(first);
     if (m) return { delim: m[1], dropFirst: true };
-    const sample = lines.slice(0, 200).join('\n');
-    const counts = { '\t':(sample.match(/\t/g)||[]).length, ';':(sample.match(/;/g)||[]).length, ',':(sample.match(/,/g)||[]).length, '|':(sample.match(/\|/g)||[]).length };
+    const sample = lines.slice(0, 200).join('\\n');
+    const counts = { '\\t':(sample.match(/\\t/g)||[]).length, ';':(sample.match(/;/g)||[]).length, ',':(sample.match(/,/g)||[]).length, '|':(sample.match(/\\|/g)||[]).length };
     const delim = Object.entries(counts).sort((a,b)=>b[1]-a[1])[0][0] || ',';
     return { delim, dropFirst:false };
   }
@@ -122,43 +128,39 @@
     }
     out.push(cur); return out;
   }
-
-  // Autodetección de encoding y decodificación
   async function fetchDecoded(url){
     const resp = await fetch(url, { cache:'no-store' });
     const buf = await resp.arrayBuffer();
-    const bytes = new Uint8Array(buf);
-    let enc = 'utf-8';
-    if (bytes.length>=2){
-      if (bytes[0]===0xFF && bytes[1]===0xFE) enc='utf-16le';
-      else if (bytes[0]===0xFE && bytes[1]===0xFF) enc='utf-16be';
-      else if (bytes.length>=3 && bytes[0]===0xEF && bytes[1]===0xBB && bytes[2]===0xBF) enc='utf-8';
+    const b = new Uint8Array(buf);
+    let enc='utf-8';
+    if (b.length>=2){
+      if (b[0]===0xFF && b[1]===0xFE) enc='utf-16le';
+      else if (b[0]===0xFE && b[1]===0xFF) enc='utf-16be';
+      else if (b.length>=3 && b[0]===0xEF && b[1]===0xBB && b[2]===0xBF) enc='utf-8';
     }
     if (enc==='utf-8'){
-      let zeros=0; for (let i=0;i<Math.min(bytes.length,4096);i++) if(bytes[i]===0) zeros++;
-      if (zeros > bytes.length/10) enc='utf-16le';
+      let zeros=0; for(let i=0;i<Math.min(b.length,4096);i++) if(b[i]===0) zeros++;
+      if (zeros > b.length/10) enc='utf-16le';
     }
-    let text;
-    try{ text = new TextDecoder(enc).decode(buf); }
-    catch{ enc='windows-1252'; text = new TextDecoder(enc).decode(buf); }
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    let text; try{ text=new TextDecoder(enc).decode(buf); }catch{ enc='windows-1252'; text=new TextDecoder(enc).decode(buf); }
     $('http').textContent = resp.status;
-    $('ct').textContent   = resp.headers.get('content-type')||'';
     $('enc').textContent  = enc.toUpperCase();
+    if (!resp.ok) throw new Error('HTTP '+resp.status);
     return text;
   }
 
-  /* ========== Estado del catálogo ========== */
-  let CATALOG = {
-    sep: ',',
-    headersRaw: [],
-    headersNorm: [],
-    rows: [],       // array de arrays
-    idx: { BC:-1, MOD:-1, COLOR:-1, TALLA:-1 },
-    map: new Map()  // barcode => {modelo,color,talla}
+  /* =========== Estado del catálogo =========== */
+  const Catalog = {
+    sep:',',
+    headersRaw:[],
+    headersNorm:[],
+    rows:[],
+    idx:{ BC:-1, MOD:-1, COLOR:-1, TALLA:-1 },
+    byBarcode:new Map(),          // barcode -> {mod,color,talla}
+    byKey:new Map()               // key3(mod,col,tal) -> barcode
   };
 
-  function mapBarcodeIndex(headersNorm){
+  function mapIdx(headersNorm){
     const want = {
       BC:    ['CODIGO_BARRA','CODIGO DE BARRAS','CODIGO BARRA','BARCODE','EAN','EAN13','UPC','CODIGO','COD_BARRAS','CBARRAS'],
       MOD:   ['MOD','MODELO','SKU'],
@@ -166,31 +168,33 @@
       TALLA: ['TALLA','SIZE','NUMERO','NUM']
     };
     const idx={BC:-1,MOD:-1,COLOR:-1,TALLA:-1};
-    for(const [k, arr] of Object.entries(want)){
-      for(const a of arr){ const p=headersNorm.indexOf(a); if(p!==-1){ idx[k]=p; break; } }
+    for (const [k, arr] of Object.entries(want)){
+      for (const a of arr){ const p=headersNorm.indexOf(a); if(p!==-1){ idx[k]=p; break; } }
     }
     return idx;
   }
 
-  function buildCatalogIndex(){
-    CATALOG.map.clear();
-    const { rows, idx } = CATALOG;
-    let filled = 0;
+  function buildCatalogIndexes(){
+    Catalog.byBarcode.clear();
+    Catalog.byKey.clear();
+    const { rows, idx } = Catalog;
+    let count=0;
     for(const cols of rows){
-      const bc = (cols[idx.BC] ?? '').trim();
-      if(!bc) continue;
-      const modelo = idx.MOD   >=0 ? (cols[idx.MOD]   ?? '').trim() : '';
-      const color  = idx.COLOR >=0 ? (cols[idx.COLOR] ?? '').trim() : '';
-      const talla  = idx.TALLA >=0 ? (cols[idx.TALLA] ?? '').trim() : '';
-      if(!CATALOG.map.has(bc)){
-        CATALOG.map.set(bc, { modelo, color, talla });
-      }
-      filled++;
+      const bc    = (cols[idx.BC]    ?? '').trim();
+      const mod   = (cols[idx.MOD]   ?? '').trim();
+      const color = (cols[idx.COLOR] ?? '').trim();
+      const talla = (cols[idx.TALLA] ?? '').trim();
+      if(!mod || !color || !talla) continue;
+      const item = {mod,color,talla};
+      const k = key3(mod,color,talla);
+      if (bc) Catalog.byBarcode.set(bc, item);
+      if (!Catalog.byKey.has(k)) Catalog.byKey.set(k, bc || '');
+      count++;
     }
-    return filled;
+    return count;
   }
 
-  /* ========== Cargar catálogo ========== */
+  /* =========== Cargar catálogo =========== */
   async function cargarCatalogo(){
     const url = $('path').value.trim();
     $('status').textContent = 'Descargando…';
@@ -199,25 +203,27 @@
       let text = await fetchDecoded(url);
       if (text.charCodeAt(0)===0xFEFF) text = text.slice(1);
       const det = detectCSV(text);
-      $('sep').textContent = det.delim === '\t' ? 'TAB' : det.delim;
-      let lines = text.split(/\r\n|\n|\r/);
+      $('sep').textContent = det.delim === '\\t' ? 'TAB' : det.delim;
+      let lines = text.split(/\\r\\n|\\n|\\r/);
       if (det.dropFirst) lines = lines.slice(1);
       lines = lines.filter(l=>l.trim().length>0);
       if (!lines.length) throw new Error('Catálogo vacío');
 
       const d = det.delim;
-      const headersRaw = splitCSV(lines[0], d);
+      const headersRaw  = splitCSV(lines[0], d);
       const headersNorm = headersRaw.map(h=>norm(h));
-      const idx = mapBarcodeIndex(headersNorm);
-      if (idx.BC === -1) throw new Error('No se detectó columna de CÓDIGO (barcode/ean/upc).');
+      const idx = mapIdx(headersNorm);
+
+      if (idx.MOD<0 || idx.COLOR<0 || idx.TALLA<0)
+        throw new Error('Faltan columnas en Catálogo: se requieren MOD, COLOR y TALLA.');
+      if (idx.BC<0)
+        console.warn('No se encontró columna de código de barras; solo se resolverá (mod,color,talla)→barcode vacío.');
 
       const rows = [];
-      for(let i=1;i<lines.length;i++){
-        rows.push( splitCSV(lines[i], d) );
-      }
+      for(let i=1;i<lines.length;i++){ rows.push( splitCSV(lines[i], d) ); }
 
-      CATALOG = { sep:d, headersRaw, headersNorm, rows, idx, map:new Map() };
-      const filled = buildCatalogIndex();
+      Object.assign(Catalog, { sep:d, headersRaw, headersNorm, rows, idx });
+      const filled = buildCatalogIndexes();
 
       $('hdrs').textContent = headersRaw.join(' | ');
       $('rows').textContent = rows.length;
@@ -231,113 +237,113 @@
     }
   }
 
-  /* ========== Pegar existencias ========== */
-  function parsePegado(text){
-    // Devuelve Map<codigo, cantidadSumada>
-    const map = new Map();
-    const lines = (text||'').split(/\r\n|\n|\r/).map(s=>s.trim()).filter(Boolean);
+  /* =========== Existencias (teórico) =========== */
+  // Entrada esperada por línea: MODELO, COLOR ..... TALLA ..... CANT
+  function parseExistenciasText(text){
+    const map = new Map();      // key3(mod,col,tal) -> cant
+    const lines = (text||'').split(/\\r\\n|\\n|\\r/).map(s=>s.trim()).filter(Boolean);
+    let nLineas=0, nOmitidos=0, nPiezas=0;
+
     for(const line of lines){
-      // Detectar separador por prioridad: coma, ;, tab, espacio múltiple
-      let codigo='', cantStr='';
-      if (line.includes(','))        [codigo, cantStr] = line.split(',',2);
-      else if (line.includes(';'))   [codigo, cantStr] = line.split(';',2);
-      else if (/\t/.test(line))      [codigo, cantStr] = line.split(/\t/,2);
-      else if (/\s+\d+([.,]\d+)?$/.test(line)) {
-        // termina en número: separa por último bloque numérico
-        const m = /(.*\S)\s+(\d+(?:[.,]\d+)?)$/.exec(line);
-        if (m){ codigo=m[1]; cantStr=m[2]; } else { codigo=line; }
+      nLineas++;
+      let modelo='', resto='';
+      const coma = line.indexOf(',');
+      if (coma >= 0){
+        modelo = line.slice(0, coma).trim();
+        resto  = line.slice(coma+1).trim();
       } else {
-        codigo = line; // sin cantidad => 1
+        // Si no hay coma, no podemos identificar COLOR correctamente; omitir.
+        nOmitidos++; continue;
       }
-
-      codigo = (codigo||'').trim();
-      if(!codigo) continue;
-
-      let cant = 1;
-      if (cantStr && cantStr.trim()){
-        let c = cantStr.replace(',','.'); // 2,0 -> 2.0
-        const n = Number(c);
-        if (!Number.isNaN(n) && Number.isFinite(n)) cant = n;
+      // Resto: ... COLOR .... TALLA .... CANT
+      const m = /^(.*\\S)\\s+(\\S+)\\s+(\\d+(?:[.,]\\d+)?)$/.exec(resto);
+      if(!m){
+        // Intento sin cantidad explícita (asumir 1)
+        const m2 = /^(.*\\S)\\s+(\\S+)$/.exec(resto);
+        if(!m2){ nOmitidos++; continue; }
+        const color = (m2[1]||'').trim();
+        const talla = (m2[2]||'').trim();
+        const cant  = 1;
+        const k = key3(modelo,color,talla);
+        map.set(k, (map.get(k)||0) + cant);
+        nPiezas += cant;
+      }else{
+        const color = (m[1]||'').trim();
+        const talla = (m[2]||'').trim();
+        const cant  = Number((m[3]||'1').replace(',','.')) || 1;
+        const k = key3(modelo,color,talla);
+        map.set(k, (map.get(k)||0) + cant);
+        nPiezas += cant;
       }
-      const prev = map.get(codigo) || 0;
-      map.set(codigo, prev + cant);
     }
-    return map;
+    return { agg:map, nLineas, nOmitidos, nPiezas, nClaves: map.size };
   }
 
-  function renderResultado(aggMap){
-    const { map:catMap } = CATALOG;
-    let html = '';
-    let totalPiezas = 0;
-    let renglones = 0;
-    const noEncontrados = [];
-
-    for(const [codigo, cant] of aggMap.entries()){
-      const info = catMap.get(codigo);
-      if(!info){
-        noEncontrados.push(codigo);
-        continue;
-      }
-      renglones++;
-      totalPiezas += cant;
-      html += `<tr>
-        <td class="mono">${codigo}</td>
-        <td>${info.modelo||''}</td>
-        <td>${info.color||''}</td>
-        <td>${info.talla||''}</td>
-        <td style="text-align:right">${cant}</td>
-      </tr>`;
+  function renderTeorico(aggMap){
+    let html=''; let total=0;
+    for(const [k, cant] of aggMap.entries()){
+      const [mm,cc,tt] = k.split('|');
+      total += cant;
+      html += `<tr><td>${mm}</td><td>${cc}</td><td>${tt}</td><td style="text-align:right">${cant}</td></tr>`;
     }
-
-    $('tbody').innerHTML = html || '<tr><td colspan="5">—</td></tr>';
-    $('tfootTotal').textContent = totalPiezas.toString();
-    $('piezas').textContent = totalPiezas.toString();
-    $('renglones').textContent = renglones.toString();
-    $('nNo').textContent = noEncontrados.length.toString();
-    $('noEncontrados').textContent = noEncontrados.length ? noEncontrados.join(', ') : '—';
-    $('resumen').textContent = renglones ? `OK: ${renglones} renglones · ${totalPiezas} piezas` : '—';
-
-    $('btnExport').disabled = renglones === 0;
-    return { renglones, totalPiezas, noEncontrados };
+    $('tbodyTeo').innerHTML = html || '<tr><td colspan="4">—</td></tr>';
+    $('totTeo').textContent = total;
+    return total;
   }
 
-  function exportCSV(){
-    // Exporta lo que está en la tabla de resultado
-    const rows = [];
-    rows.push(['CODIGO','MODELO','COLOR','TALLA','CANTIDAD']);
-    const trs = Array.from($('tbody').querySelectorAll('tr'));
-    for(const tr of trs){
-      const tds = tr.querySelectorAll('td');
-      if (tds.length !== 5) continue;
-      rows.push(Array.from(tds).map(td=>td.textContent));
+  function exportTeoricoCSV(aggMap){
+    const rows = [['MODELO','COLOR','TALLA','CANTIDAD']];
+    for(const [k,c] of aggMap.entries()){
+      const [mm,cc,tt] = k.split('|');
+      rows.push([mm,cc,tt,String(c)]);
     }
     const csv = rows.map(r=>r.map(v=>{
       v = v ?? '';
-      if (/[",;\t]/.test(v)) return `"${v.replace(/"/g,'""')}"`;
+      if (/[",;\\t]/.test(v)) return '"'+v.replace(/"/g,'""')+'"';
       return v;
-    }).join(',')).join('\r\n');
+    }).join(',')).join('\\r\\n');
     const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'existencias_match.csv';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(a.href);
+    a.download = 'existencias_teorico.csv';
+    document.body.appendChild(a); a.click(); a.remove();
   }
 
-  /* ========== Eventos ========== */
+  /* =========== Esqueleto cruce (para etapa 2) =========== */
+  // (lo activaremos cuando conectemos el escáner)
+  function cruzarEscaneosConTeorico(){ /* TODO: etapa 2 */ }
+
+  /* =========== Eventos =========== */
   $('btnLoad').addEventListener('click', cargarCatalogo);
   $('btnBust').addEventListener('click', ()=>{
     const u = $('path').value.trim();
     $('path').value = u + (u.includes('?')?'&':'?') + 'v=' + Date.now();
   });
+
   $('btnProcesar').addEventListener('click', ()=>{
-    if (!CATALOG.map.size) { alert('Primero carga el catálogo.'); return; }
-    const agg = parsePegado( $('paste').value );
-    renderResultado(agg);
+    if (!Catalog.rows.length){ alert('Primero carga el Catálogo Master.'); return; }
+    const { agg, nLineas, nOmitidos, nPiezas, nClaves } = parseExistenciasText( $('paste').value );
+    $('nClaves').textContent  = nClaves;
+    $('nPiezas').textContent  = nPiezas;
+    $('nLineas').textContent  = nLineas;
+    $('nOmitidos').textContent= nOmitidos;
+    const total = renderTeorico(agg);
+    $('resumenTeo').textContent = nClaves ? `OK: ${nClaves} claves · ${nPiezas} piezas` : '—';
+    $('btnExportTeorico').disabled = nClaves === 0;
+    // guarda en memoria para posible cruce posterior
+    window._existTeorico = agg;
   });
-  $('btnExport').addEventListener('click', exportCSV);
+
+  $('btnExportTeorico').addEventListener('click', ()=>{
+    if (!window._existTeorico) return;
+    exportTeoricoCSV(window._existTeorico);
+  });
+
+  // Habilitar “Procesar existencias” solo cuando haya catálogo
+  const enableProcesar = () => $('btnProcesar').disabled = !Catalog.rows.length;
+  const origSet = $('status').textContent;
+  const mo = new MutationObserver(()=>enableProcesar());
+  mo.observe($('status'), { childList:true, subtree:true });
 })();
 </script>
 </body>
