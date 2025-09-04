@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>CKLASS — Diagnóstico Catálogo</title>
+  <title>CKLASS — Diagnóstico Catálogo (auto-encoding)</title>
   <style>
     body{font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;background:#f6f7f9;color:#111;margin:0}
     .wrap{max-width:980px;margin:0 auto;padding:16px}
@@ -17,12 +17,13 @@
     table{border-collapse:collapse;width:100%;background:#fff;border:1px solid #e5e7eb;border-radius:.5rem;overflow:hidden}
     th,td{border-bottom:1px solid #eef2f7;padding:.4rem .5rem;font-size:.9rem;text-align:left}
     th{background:#f8fafc}
+    input{width:100%;padding:.6rem;border:1px solid #d0d7de;border-radius:.5rem}
   </style>
 </head>
 <body>
 <div class="wrap">
   <h1>CKLASS — Diagnóstico de <code>static/catalogo-master.csv</code></h1>
-  <p>Este diagnóstico muestra la <b>URL exacta</b> que se intenta leer, el <b>HTTP</b> y las primeras líneas.</p>
+  <p>Auto-detección de codificación (UTF-8 / UTF-16LE / UTF-16BE / Windows-1252), separador, headers y conteo.</p>
 
   <div class="card">
     <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
@@ -31,7 +32,7 @@
       <span id="status">—</span>
     </div>
     <label for="path" style="display:block;margin:.5rem 0 .25rem">Ruta (relativa a esta página):</label>
-    <input id="path" value="./static/catalogo-master.csv" style="width:100%;padding:.6rem;border:1px solid #d0d7de;border-radius:.5rem" />
+    <input id="path" value="./static/catalogo-master.csv" />
     <p style="margin:.5rem 0 0;font-size:.9rem;color:#555">URL resuelta: <code id="resolved">—</code></p>
   </div>
 
@@ -45,6 +46,7 @@
         <tr><th>Content-Type</th><td id="ct">—</td></tr>
         <tr><th>Content-Length</th><td id="cl">—</td></tr>
         <tr><th>Tiempo descarga</th><td id="time">—</td></tr>
+        <tr><th>Codificación detectada</th><td id="enc">—</td></tr>
       </tbody>
     </table>
     <div style="margin-top:.5rem"><b>RAW (primeras 10 líneas)</b></div>
@@ -52,7 +54,7 @@
   </div>
 
   <div class="card">
-    <h3 style="margin-top:0">Parseo (básico)</h3>
+    <h3 style="margin-top:0">Parseo</h3>
     <table>
       <tbody>
         <tr><th style="width:220px">Separador detectado</th><td id="sep">—</td></tr>
@@ -71,7 +73,7 @@
   const norm = s => (s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase();
 
   function detectCSV(text){
-    const lines = text.split(/\r?\n/);
+    const lines = text.split(/\r\n|\n|\r/); // más robusto
     const first = lines[0] || '';
     const m = /^sep\s*=\s*([,;|\t])\s*$/i.exec(first);
     if (m) return { delim: m[1], dropFirst: true };
@@ -80,6 +82,7 @@
     const delim = Object.entries(counts).sort((a,b)=>b[1]-a[1])[0][0] || ',';
     return { delim, dropFirst:false };
   }
+
   function splitCSV(line, d){
     const out=[]; let cur='', q=false;
     for (let i=0;i<line.length;i++){
@@ -90,12 +93,15 @@
     }
     out.push(cur); return out;
   }
+
   function parseCSV(text){
     if (!text) throw new Error('Archivo vacío');
+    // quitar BOM UTF-8 si existe
     if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+
     const det = detectCSV(text);
     $('sep').textContent = det.delim === '\t' ? 'TAB' : det.delim;
-    let lines = text.split(/\r?\n/);
+    let lines = text.split(/\r\n|\n|\r/);
     if (det.dropFirst) lines = lines.slice(1);
     lines = lines.filter(l=>l.trim().length>0);
     if (!lines.length) throw new Error('Catálogo vacío');
@@ -104,12 +110,11 @@
     const headers = splitCSV(lines[0], d).map(h => norm(h));
     $('hdrs').textContent = headers.join(' | ');
 
-    // contar registros (si la primera columna está vacía no cuenta)
     let ok=0; const prev=[];
     for (let i=1;i<lines.length;i++){
       const cols = splitCSV(lines[i], d);
       if(!cols.length) continue;
-      const first = (cols[0]||'').trim();
+      const first = (cols[0]||'').trim(); // asumimos 1a col no vacía para contar
       if(!first) continue;
       ok++;
       if(prev.length<8) prev.push(lines[i]);
@@ -127,26 +132,62 @@
     return url;
   }
 
+  // --- NUEVO: fetch con auto-detección de codificación ---
+  async function fetchDecoded(url){
+    const t0 = performance.now();
+    const resp = await fetch(url, { cache: 'no-store' });
+    const t1 = performance.now();
+    $('http').textContent = resp.status;
+    $('ct').textContent   = resp.headers.get('content-type')||'';
+    $('cl').textContent   = resp.headers.get('content-length')||'';
+    $('time').textContent = (t1 - t0).toFixed(0) + ' ms';
+
+    const buf = await resp.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    let enc = 'utf-8';
+
+    // Detectar BOM
+    if (bytes.length >= 2) {
+      if (bytes[0] === 0xFF && bytes[1] === 0xFE) enc = 'utf-16le';
+      else if (bytes[0] === 0xFE && bytes[1] === 0xFF) enc = 'utf-16be';
+      else if (bytes.length >= 3 && bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) enc = 'utf-8';
+    }
+
+    // Si no BOM y hay muchos ceros → probablemente UTF-16LE
+    if (enc === 'utf-8') {
+      let zeroCount = 0;
+      for (let i=0;i<Math.min(bytes.length, 4096); i++) if (bytes[i] === 0) zeroCount++;
+      if (zeroCount > (bytes.length/10)) enc = 'utf-16le';
+    }
+
+    let text;
+    try{
+      text = new TextDecoder(enc).decode(buf);
+    }catch(_){
+      // último intento: Windows-1252
+      enc = 'windows-1252';
+      text = new TextDecoder(enc).decode(buf);
+    }
+
+    $('enc').textContent = enc.toUpperCase();
+    return { resp, text };
+  }
+
   async function load(){
     const url = resolveURL();
     $('origin').textContent = location.href;
     $('status').textContent = 'Descargando…';
     $('http').textContent = $('ct').textContent = $('cl').textContent = $('time').textContent = '—';
     $('raw').textContent = '—';
+    $('enc').textContent = '—';
 
-    const t0 = performance.now();
     try{
-      const resp = await fetch(url, { cache: 'no-store' });
-      const t1 = performance.now();
-      $('http').textContent = resp.status;
-      $('ct').textContent = resp.headers.get('content-type')||'';
-      $('cl').textContent = resp.headers.get('content-length')||'';
-      $('time').textContent = (t1 - t0).toFixed(0) + ' ms';
-      const txt = await resp.text();
-      $('raw').textContent = txt.split(/\r?\n/).slice(0,10).join('\n');
+      const { resp, text } = await fetchDecoded(url);
+      const raw10 = text.split(/\r\n|\n|\r/).slice(0,10).join('\n');
+      $('raw').textContent = raw10 || '(vacío)';
       if(!resp.ok) throw new Error('HTTP ' + resp.status);
       $('status').innerHTML = '<span class="ok">OK</span>';
-      parseCSV(txt);
+      parseCSV(text);
     }catch(e){
       $('status').innerHTML = '<span class="err">❌ ' + (e?.message||e) + '</span>';
       alert('Error: ' + (e?.message||e));
@@ -160,7 +201,6 @@
     resolveURL();
   });
 
-  // Resuelve URL al cargar
   resolveURL();
 })();
 </script>
