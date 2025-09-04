@@ -3,77 +3,107 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>CKLASS — Diagnóstico Catálogo (auto-encoding)</title>
+  <title>CKLASS — Catálogo + Pegar existencias</title>
   <style>
-    body{font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;background:#f6f7f9;color:#111;margin:0}
-    .wrap{max-width:980px;margin:0 auto;padding:16px}
-    .btn{display:inline-flex;align-items:center;gap:.5rem;padding:.5rem .8rem;border-radius:.5rem;border:1px solid #d0d7de;background:#fff;cursor:pointer}
+    :root{--b:#111;--m:#f6f7f9;--bd:#d0d7de;--mut:#6b7280}
+    *{box-sizing:border-box} body{font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;background:var(--m);color:var(--b);margin:0}
+    .wrap{max-width:1100px;margin:0 auto;padding:16px}
+    h1{margin:0 0 8px;font-size:24px}
+    h2{margin:0 0 8px;font-size:18px}
+    p{margin:0 0 12px;color:var(--mut)}
+    .row{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+    .btn{display:inline-flex;align-items:center;gap:.5rem;padding:.5rem .8rem;border-radius:.5rem;border:1px solid var(--bd);background:#fff;cursor:pointer;user-select:none}
     .btn:active{transform:scale(.97);opacity:.9}
     .btn[disabled]{opacity:.6;pointer-events:none}
-    pre{background:#fff;border:1px solid #e5e7eb;border-radius:.5rem;padding:.75rem;overflow:auto}
-    .card{background:#fff;border:1px solid #e5e7eb;border-radius:.75rem;padding:1rem;margin-top:12px}
     .ok{color:#047857}.err{color:#b91c1c}
+    input,textarea{width:100%;padding:.6rem;border:1px solid var(--bd);border-radius:.5rem;font-family:inherit}
+    textarea{min-height:160px;white-space:pre}
+    pre{background:#fff;border:1px solid var(--bd);border-radius:.5rem;padding:.75rem;overflow:auto}
+    .card{background:#fff;border:1px solid var(--bd);border-radius:.75rem;padding:1rem;margin-top:12px}
     code{background:#eef2f7;border:1px solid #e5e7eb;border-radius:.25rem;padding:.05rem .3rem}
-    table{border-collapse:collapse;width:100%;background:#fff;border:1px solid #e5e7eb;border-radius:.5rem;overflow:hidden}
-    th,td{border-bottom:1px solid #eef2f7;padding:.4rem .5rem;font-size:.9rem;text-align:left}
+    table{border-collapse:collapse;width:100%;background:#fff;border:1px solid var(--bd);border-radius:.5rem;overflow:hidden}
+    th,td{border-bottom:1px solid #eef2f7;padding:.45rem .55rem;font-size:.9rem;text-align:left}
     th{background:#f8fafc}
-    input{width:100%;padding:.6rem;border:1px solid #d0d7de;border-radius:.5rem}
+    tfoot td{font-weight:600;background:#fafafa}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
   </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>CKLASS — Diagnóstico de <code>static/catalogo-master.csv</code></h1>
-  <p>Auto-detección de codificación (UTF-8 / UTF-16LE / UTF-16BE / Windows-1252), separador, headers y conteo.</p>
+  <h1>CKLASS — Catálogo + Pegar existencias</h1>
+  <p>1) Carga el catálogo desde <code>./static/catalogo-master.csv</code>. 2) Pega tus existencias (código, cantidad). 3) Exporta el resultado.</p>
 
+  <!-- CARGA DE CATÁLOGO -->
   <div class="card">
-    <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
-      <button id="btnLoad" class="btn">Cargar CSV</button>
-      <button id="btnBust" class="btn" title="Evita caché agregando ?v=timestamp">Forzar recarga</button>
+    <h2>1) Cargar catálogo</h2>
+    <div class="row" style="margin-bottom:.5rem">
+      <button id="btnLoad" class="btn" type="button">Cargar CSV</button>
+      <button id="btnBust" class="btn" type="button" title="Evita caché agregando ?v=timestamp">Forzar recarga</button>
       <span id="status">—</span>
     </div>
-    <label for="path" style="display:block;margin:.5rem 0 .25rem">Ruta (relativa a esta página):</label>
+    <label for="path" style="display:block;margin-bottom:.25rem;color:#374151;font-size:.9rem">Ruta del catálogo</label>
     <input id="path" value="./static/catalogo-master.csv" />
-    <p style="margin:.5rem 0 0;font-size:.9rem;color:#555">URL resuelta: <code id="resolved">—</code></p>
+    <div class="row" style="margin-top:.5rem">
+      <div><b>HTTP:</b> <span id="http">—</span></div>
+      <div><b>CT:</b> <span id="ct">—</span></div>
+      <div><b>Enc:</b> <span id="enc">—</span></div>
+      <div><b>Sep:</b> <span id="sep">—</span></div>
+      <div><b>Headers:</b> <span id="hdrs">—</span></div>
+      <div><b>Filas:</b> <span id="rows">—</span></div>
+    </div>
   </div>
 
+  <!-- PEGAR EXISTENCIAS -->
   <div class="card">
-    <h3 style="margin-top:0">Diagnóstico</h3>
-    <table>
-      <tbody>
-        <tr><th style="width:220px">Origen (esta página)</th><td id="origin">—</td></tr>
-        <tr><th>CSV pública (click para abrir)</th><td><a id="csvPublic" href="#" target="_blank">—</a></td></tr>
-        <tr><th>HTTP</th><td id="http">—</td></tr>
-        <tr><th>Content-Type</th><td id="ct">—</td></tr>
-        <tr><th>Content-Length</th><td id="cl">—</td></tr>
-        <tr><th>Tiempo descarga</th><td id="time">—</td></tr>
-        <tr><th>Codificación detectada</th><td id="enc">—</td></tr>
-      </tbody>
-    </table>
-    <div style="margin-top:.5rem"><b>RAW (primeras 10 líneas)</b></div>
-    <pre id="raw">—</pre>
+    <h2>2) Pegar existencias</h2>
+    <p class="mono">Formatos válidos por línea: <code>CODIGO, CANT</code> | <code>CODIGO;CANT</code> | <code>CODIGO &lt;TAB&gt; CANT</code> | <code>CODIGO CANT</code> | <code>CODIGO</code> (asume 1)</p>
+    <textarea id="paste" placeholder="Ejemplos:
+7501055312345, 3
+7501055367890 2
+7501055300001
+"></textarea>
+    <div class="row" style="margin-top:.5rem">
+      <button id="btnProcesar" class="btn" type="button" disabled>Procesar pegado</button>
+      <button id="btnExport" class="btn" type="button" disabled>Exportar CSV (resultado)</button>
+      <span id="resumen">—</span>
+    </div>
   </div>
 
+  <!-- RESULTADOS -->
   <div class="card">
-    <h3 style="margin-top:0">Parseo</h3>
-    <table>
-      <tbody>
-        <tr><th style="width:220px">Separador detectado</th><td id="sep">—</td></tr>
-        <tr><th>Encabezados detectados</th><td id="hdrs">—</td></tr>
-        <tr><th>Registros válidos</th><td id="count">—</td></tr>
-      </tbody>
-    </table>
-    <div style="margin-top:.5rem"><b>Primeras filas</b></div>
-    <pre id="sample">—</pre>
+    <h2>3) Resultado (match con catálogo)</h2>
+    <div class="row">
+      <div><b>Renglones:</b> <span id="renglones">0</span></div>
+      <div><b>Piezas totales:</b> <span id="piezas">0</span></div>
+      <div><b>No encontrados:</b> <span id="nNo">0</span></div>
+    </div>
+    <div id="noEncontrados" class="mono" style="margin:.5rem 0 .25rem;color:#b91c1c">—</div>
+    <div style="overflow:auto">
+      <table id="tbl">
+        <thead>
+          <tr>
+            <th>Código</th><th>Modelo</th><th>Color</th><th>Talla</th><th style="text-align:right">Cantidad</th>
+          </tr>
+        </thead>
+        <tbody id="tbody">
+          <tr><td colspan="5">—</td></tr>
+        </tbody>
+        <tfoot>
+          <tr><td colspan="4" style="text-align:right">TOTAL</td><td id="tfootTotal" style="text-align:right">0</td></tr>
+        </tfoot>
+      </table>
+    </div>
   </div>
 </div>
 
 <script>
 (function(){
+  /* ========== Utilidades comunes ========== */
   const $ = id => document.getElementById(id);
   const norm = s => (s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase();
 
   function detectCSV(text){
-    const lines = text.split(/\r\n|\n|\r/); // más robusto
+    const lines = text.split(/\r\n|\n|\r/);
     const first = lines[0] || '';
     const m = /^sep\s*=\s*([,;|\t])\s*$/i.exec(first);
     if (m) return { delim: m[1], dropFirst: true };
@@ -82,7 +112,6 @@
     const delim = Object.entries(counts).sort((a,b)=>b[1]-a[1])[0][0] || ',';
     return { delim, dropFirst:false };
   }
-
   function splitCSV(line, d){
     const out=[]; let cur='', q=false;
     for (let i=0;i<line.length;i++){
@@ -94,114 +123,221 @@
     out.push(cur); return out;
   }
 
-  function parseCSV(text){
-    if (!text) throw new Error('Archivo vacío');
-    // quitar BOM UTF-8 si existe
-    if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
-
-    const det = detectCSV(text);
-    $('sep').textContent = det.delim === '\t' ? 'TAB' : det.delim;
-    let lines = text.split(/\r\n|\n|\r/);
-    if (det.dropFirst) lines = lines.slice(1);
-    lines = lines.filter(l=>l.trim().length>0);
-    if (!lines.length) throw new Error('Catálogo vacío');
-
-    const d = det.delim;
-    const headers = splitCSV(lines[0], d).map(h => norm(h));
-    $('hdrs').textContent = headers.join(' | ');
-
-    let ok=0; const prev=[];
-    for (let i=1;i<lines.length;i++){
-      const cols = splitCSV(lines[i], d);
-      if(!cols.length) continue;
-      const first = (cols[0]||'').trim(); // asumimos 1a col no vacía para contar
-      if(!first) continue;
-      ok++;
-      if(prev.length<8) prev.push(lines[i]);
-    }
-    $('count').textContent = ok;
-    $('sample').textContent = prev.length ? prev.join('\n') : '—';
-  }
-
-  function resolveURL(){
-    const rel = $('path').value.trim();
-    const url = new URL(rel, location.href).href;
-    $('resolved').textContent = url;
-    $('csvPublic').href = url;
-    $('csvPublic').textContent = url;
-    return url;
-  }
-
-  // --- NUEVO: fetch con auto-detección de codificación ---
+  // Autodetección de encoding y decodificación
   async function fetchDecoded(url){
-    const t0 = performance.now();
-    const resp = await fetch(url, { cache: 'no-store' });
-    const t1 = performance.now();
-    $('http').textContent = resp.status;
-    $('ct').textContent   = resp.headers.get('content-type')||'';
-    $('cl').textContent   = resp.headers.get('content-length')||'';
-    $('time').textContent = (t1 - t0).toFixed(0) + ' ms';
-
+    const resp = await fetch(url, { cache:'no-store' });
     const buf = await resp.arrayBuffer();
     const bytes = new Uint8Array(buf);
     let enc = 'utf-8';
-
-    // Detectar BOM
-    if (bytes.length >= 2) {
-      if (bytes[0] === 0xFF && bytes[1] === 0xFE) enc = 'utf-16le';
-      else if (bytes[0] === 0xFE && bytes[1] === 0xFF) enc = 'utf-16be';
-      else if (bytes.length >= 3 && bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) enc = 'utf-8';
+    if (bytes.length>=2){
+      if (bytes[0]===0xFF && bytes[1]===0xFE) enc='utf-16le';
+      else if (bytes[0]===0xFE && bytes[1]===0xFF) enc='utf-16be';
+      else if (bytes.length>=3 && bytes[0]===0xEF && bytes[1]===0xBB && bytes[2]===0xBF) enc='utf-8';
     }
-
-    // Si no BOM y hay muchos ceros → probablemente UTF-16LE
-    if (enc === 'utf-8') {
-      let zeroCount = 0;
-      for (let i=0;i<Math.min(bytes.length, 4096); i++) if (bytes[i] === 0) zeroCount++;
-      if (zeroCount > (bytes.length/10)) enc = 'utf-16le';
+    if (enc==='utf-8'){
+      let zeros=0; for (let i=0;i<Math.min(bytes.length,4096);i++) if(bytes[i]===0) zeros++;
+      if (zeros > bytes.length/10) enc='utf-16le';
     }
-
     let text;
-    try{
-      text = new TextDecoder(enc).decode(buf);
-    }catch(_){
-      // último intento: Windows-1252
-      enc = 'windows-1252';
-      text = new TextDecoder(enc).decode(buf);
-    }
-
-    $('enc').textContent = enc.toUpperCase();
-    return { resp, text };
+    try{ text = new TextDecoder(enc).decode(buf); }
+    catch{ enc='windows-1252'; text = new TextDecoder(enc).decode(buf); }
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    $('http').textContent = resp.status;
+    $('ct').textContent   = resp.headers.get('content-type')||'';
+    $('enc').textContent  = enc.toUpperCase();
+    return text;
   }
 
-  async function load(){
-    const url = resolveURL();
-    $('origin').textContent = location.href;
+  /* ========== Estado del catálogo ========== */
+  let CATALOG = {
+    sep: ',',
+    headersRaw: [],
+    headersNorm: [],
+    rows: [],       // array de arrays
+    idx: { BC:-1, MOD:-1, COLOR:-1, TALLA:-1 },
+    map: new Map()  // barcode => {modelo,color,talla}
+  };
+
+  function mapBarcodeIndex(headersNorm){
+    const want = {
+      BC:    ['CODIGO_BARRA','CODIGO DE BARRAS','CODIGO BARRA','BARCODE','EAN','EAN13','UPC','CODIGO','COD_BARRAS','CBARRAS'],
+      MOD:   ['MOD','MODELO','SKU'],
+      COLOR: ['COLOR','COL'],
+      TALLA: ['TALLA','SIZE','NUMERO','NUM']
+    };
+    const idx={BC:-1,MOD:-1,COLOR:-1,TALLA:-1};
+    for(const [k, arr] of Object.entries(want)){
+      for(const a of arr){ const p=headersNorm.indexOf(a); if(p!==-1){ idx[k]=p; break; } }
+    }
+    return idx;
+  }
+
+  function buildCatalogIndex(){
+    CATALOG.map.clear();
+    const { rows, idx } = CATALOG;
+    let filled = 0;
+    for(const cols of rows){
+      const bc = (cols[idx.BC] ?? '').trim();
+      if(!bc) continue;
+      const modelo = idx.MOD   >=0 ? (cols[idx.MOD]   ?? '').trim() : '';
+      const color  = idx.COLOR >=0 ? (cols[idx.COLOR] ?? '').trim() : '';
+      const talla  = idx.TALLA >=0 ? (cols[idx.TALLA] ?? '').trim() : '';
+      if(!CATALOG.map.has(bc)){
+        CATALOG.map.set(bc, { modelo, color, talla });
+      }
+      filled++;
+    }
+    return filled;
+  }
+
+  /* ========== Cargar catálogo ========== */
+  async function cargarCatalogo(){
+    const url = $('path').value.trim();
     $('status').textContent = 'Descargando…';
-    $('http').textContent = $('ct').textContent = $('cl').textContent = $('time').textContent = '—';
-    $('raw').textContent = '—';
-    $('enc').textContent = '—';
-
+    $('sep').textContent = $('hdrs').textContent = $('rows').textContent = '—';
     try{
-      const { resp, text } = await fetchDecoded(url);
-      const raw10 = text.split(/\r\n|\n|\r/).slice(0,10).join('\n');
-      $('raw').textContent = raw10 || '(vacío)';
-      if(!resp.ok) throw new Error('HTTP ' + resp.status);
+      let text = await fetchDecoded(url);
+      if (text.charCodeAt(0)===0xFEFF) text = text.slice(1);
+      const det = detectCSV(text);
+      $('sep').textContent = det.delim === '\t' ? 'TAB' : det.delim;
+      let lines = text.split(/\r\n|\n|\r/);
+      if (det.dropFirst) lines = lines.slice(1);
+      lines = lines.filter(l=>l.trim().length>0);
+      if (!lines.length) throw new Error('Catálogo vacío');
+
+      const d = det.delim;
+      const headersRaw = splitCSV(lines[0], d);
+      const headersNorm = headersRaw.map(h=>norm(h));
+      const idx = mapBarcodeIndex(headersNorm);
+      if (idx.BC === -1) throw new Error('No se detectó columna de CÓDIGO (barcode/ean/upc).');
+
+      const rows = [];
+      for(let i=1;i<lines.length;i++){
+        rows.push( splitCSV(lines[i], d) );
+      }
+
+      CATALOG = { sep:d, headersRaw, headersNorm, rows, idx, map:new Map() };
+      const filled = buildCatalogIndex();
+
+      $('hdrs').textContent = headersRaw.join(' | ');
+      $('rows').textContent = rows.length;
       $('status').innerHTML = '<span class="ok">OK</span>';
-      parseCSV(text);
+      $('btnProcesar').disabled = false;
+
     }catch(e){
-      $('status').innerHTML = '<span class="err">❌ ' + (e?.message||e) + '</span>';
-      alert('Error: ' + (e?.message||e));
+      $('status').innerHTML = '<span class="err">❌ '+(e?.message||e)+'</span>';
+      $('btnProcesar').disabled = true;
+      alert('Error cargando catálogo: ' + (e?.message||e));
     }
   }
 
-  $('btnLoad').addEventListener('click', load);
+  /* ========== Pegar existencias ========== */
+  function parsePegado(text){
+    // Devuelve Map<codigo, cantidadSumada>
+    const map = new Map();
+    const lines = (text||'').split(/\r\n|\n|\r/).map(s=>s.trim()).filter(Boolean);
+    for(const line of lines){
+      // Detectar separador por prioridad: coma, ;, tab, espacio múltiple
+      let codigo='', cantStr='';
+      if (line.includes(','))        [codigo, cantStr] = line.split(',',2);
+      else if (line.includes(';'))   [codigo, cantStr] = line.split(';',2);
+      else if (/\t/.test(line))      [codigo, cantStr] = line.split(/\t/,2);
+      else if (/\s+\d+([.,]\d+)?$/.test(line)) {
+        // termina en número: separa por último bloque numérico
+        const m = /(.*\S)\s+(\d+(?:[.,]\d+)?)$/.exec(line);
+        if (m){ codigo=m[1]; cantStr=m[2]; } else { codigo=line; }
+      } else {
+        codigo = line; // sin cantidad => 1
+      }
+
+      codigo = (codigo||'').trim();
+      if(!codigo) continue;
+
+      let cant = 1;
+      if (cantStr && cantStr.trim()){
+        let c = cantStr.replace(',','.'); // 2,0 -> 2.0
+        const n = Number(c);
+        if (!Number.isNaN(n) && Number.isFinite(n)) cant = n;
+      }
+      const prev = map.get(codigo) || 0;
+      map.set(codigo, prev + cant);
+    }
+    return map;
+  }
+
+  function renderResultado(aggMap){
+    const { map:catMap } = CATALOG;
+    let html = '';
+    let totalPiezas = 0;
+    let renglones = 0;
+    const noEncontrados = [];
+
+    for(const [codigo, cant] of aggMap.entries()){
+      const info = catMap.get(codigo);
+      if(!info){
+        noEncontrados.push(codigo);
+        continue;
+      }
+      renglones++;
+      totalPiezas += cant;
+      html += `<tr>
+        <td class="mono">${codigo}</td>
+        <td>${info.modelo||''}</td>
+        <td>${info.color||''}</td>
+        <td>${info.talla||''}</td>
+        <td style="text-align:right">${cant}</td>
+      </tr>`;
+    }
+
+    $('tbody').innerHTML = html || '<tr><td colspan="5">—</td></tr>';
+    $('tfootTotal').textContent = totalPiezas.toString();
+    $('piezas').textContent = totalPiezas.toString();
+    $('renglones').textContent = renglones.toString();
+    $('nNo').textContent = noEncontrados.length.toString();
+    $('noEncontrados').textContent = noEncontrados.length ? noEncontrados.join(', ') : '—';
+    $('resumen').textContent = renglones ? `OK: ${renglones} renglones · ${totalPiezas} piezas` : '—';
+
+    $('btnExport').disabled = renglones === 0;
+    return { renglones, totalPiezas, noEncontrados };
+  }
+
+  function exportCSV(){
+    // Exporta lo que está en la tabla de resultado
+    const rows = [];
+    rows.push(['CODIGO','MODELO','COLOR','TALLA','CANTIDAD']);
+    const trs = Array.from($('tbody').querySelectorAll('tr'));
+    for(const tr of trs){
+      const tds = tr.querySelectorAll('td');
+      if (tds.length !== 5) continue;
+      rows.push(Array.from(tds).map(td=>td.textContent));
+    }
+    const csv = rows.map(r=>r.map(v=>{
+      v = v ?? '';
+      if (/[",;\t]/.test(v)) return `"${v.replace(/"/g,'""')}"`;
+      return v;
+    }).join(',')).join('\r\n');
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'existencias_match.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(a.href);
+  }
+
+  /* ========== Eventos ========== */
+  $('btnLoad').addEventListener('click', cargarCatalogo);
   $('btnBust').addEventListener('click', ()=>{
     const u = $('path').value.trim();
     $('path').value = u + (u.includes('?')?'&':'?') + 'v=' + Date.now();
-    resolveURL();
   });
-
-  resolveURL();
+  $('btnProcesar').addEventListener('click', ()=>{
+    if (!CATALOG.map.size) { alert('Primero carga el catálogo.'); return; }
+    const agg = parsePegado( $('paste').value );
+    renderResultado(agg);
+  });
+  $('btnExport').addEventListener('click', exportCSV);
 })();
 </script>
 </body>
