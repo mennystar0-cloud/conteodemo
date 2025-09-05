@@ -8,12 +8,14 @@
   <meta name="theme-color" content="#1877F2" />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="icons/icon-192.png" />
-  <!-- Tailwind -->
+  <!-- UI -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Quagga2 (lector códigos) -->
+  <!-- Quagga2 (escáner) -->
   <script src="https://unpkg.com/@ericblade/quagga2/dist/quagga.min.js"></script>
   <!-- SheetJS (XLSX) -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js"></script>
+  <!-- JSZip para exportar ZIP admin -->
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <style>
     .btn{padding:.5rem .75rem;border-radius:.5rem;font-size:.875rem}
     .table th,.table td{border-bottom:1px solid #e5e7eb;padding:.25rem .5rem}
@@ -60,12 +62,12 @@
           Archivo esperado: <code>static/catalogo-master.xlsx</code> (o .csv). Encabezados aceptados: <b>CODIGO_BARRA / CODIGO / EAN / UPC</b>, <b>MOD</b>, <b>COLOR</b>, <b>TALLA</b>.
         </p>
         <div class="flex flex-wrap gap-2">
-          <button id="btnRecargarCloud" class="btn bg-blue-600 text-white" aria-label="Recargar catálogo desde Storage">Recargar</button>
-          <button id="btnResumenCat" class="btn bg-gray-100" aria-label="Ver resumen del catálogo">Resumen</button>
-          <button id="btnBorrarCat" class="btn bg-red-600 text-white" aria-label="Borrar caché de catálogo">Borrar caché</button>
-          <button id="btnForzarURL" class="btn bg-amber-500 text-white" aria-label="Forzar URL única">Forzar URL única</button>
+          <button id="btnRecargarCloud" class="btn bg-blue-600 text-white">Recargar</button>
+          <button id="btnResumenCat" class="btn bg-gray-100">Resumen</button>
+          <button id="btnBorrarCat" class="btn bg-red-600 text-white">Borrar caché</button>
+          <button id="btnForzarURL" class="btn bg-amber-500 text-white">Forzar URL única</button>
         </div>
-        <div id="masterStatus" class="text-xs text-gray-600 mt-2" role="status">—</div>
+        <div id="masterStatus" class="text-xs text-gray-600 mt-2">—</div>
         <details class="mt-3">
           <summary class="text-sm font-medium">Diagnóstico catálogo</summary>
           <div class="text-xs mt-2 space-y-2" id="catalogDiag">—</div>
@@ -84,7 +86,7 @@
           <button id="btnCargarExistencias" class="btn bg-blue-600 text-white">Cargar existencias</button>
           <button id="btnLimpiarExistencias" class="btn bg-gray-100">Limpiar</button>
         </div>
-        <div id="existStatus" class="text-xs text-gray-600 mt-2" role="status">—</div>
+        <div id="existStatus" class="text-xs text-gray-600 mt-2">—</div>
       </div>
     </div>
   </section>
@@ -111,7 +113,7 @@
           </div>
         </div>
       </div>
-      <div class="text-xs text-gray-600 mt-3" id="folioStatus" role="status">—</div>
+      <div class="text-xs text-gray-600 mt-3" id="folioStatus">—</div>
     </div>
   </section>
 
@@ -124,13 +126,16 @@
           <div id="interactive" class="viewport w-full h-full"></div>
           <div id="overlay" class="ring-2 ring-offset-2 ring-white/70 rounded"></div>
         </div>
-        <div class="mt-2 flex gap-2 items-center">
+        <div class="mt-2 flex flex-wrap gap-2 items-center">
           <button id="btnStartScan" class="btn bg-blue-600 text-white">Iniciar</button>
           <button id="btnStopScan" class="btn bg-gray-200">Detener</button>
+          <select id="cameraSelect" class="p-2 border rounded text-sm"></select>
+          <button id="btnRefreshCams" class="btn bg-gray-100">Refrescar cámaras</button>
+          <button id="btnTorch" class="btn bg-amber-500 text-white">Linterna</button>
           <button id="btnSimular" class="btn bg-amber-500 text-white" title="Prueba de estrés">Simular 500</button>
           <span id="offlineBadge" class="ml-auto text-xs px-2 py-1 rounded bg-gray-200">—</span>
         </div>
-        <div class="text-xs text-gray-600 mt-2" id="scanStatus" role="status">—</div>
+        <div class="text-xs text-gray-600 mt-2" id="scanStatus">—</div>
       </div>
       <div class="card">
         <h2 class="font-semibold mb-2">Entrada manual</h2>
@@ -147,10 +152,11 @@
   <section id="tab-reporte" class="tab-pane hidden" role="tabpanel">
     <div class="card">
       <h2 class="font-semibold mb-2">Reporte vs Existencias</h2>
-      <div class="mb-2 flex gap-2">
+      <div class="mb-2 flex flex-wrap gap-2">
         <button id="btnRefrescarReporte" class="btn bg-blue-600 text-white">Refrescar</button>
         <button id="btnExportarCSV" class="btn bg-gray-200">Exportar CSV</button>
         <button id="btnImprimir" class="btn bg-gray-200">Imprimir</button>
+        <button id="btnAdminExport" class="btn bg-violet-600 text-white">Descargar ZIP (admin)</button>
       </div>
       <div class="overflow-auto max-h-[60vh]">
         <table class="table w-full text-sm">
@@ -215,9 +221,10 @@
   db.enablePersistence().catch(()=>{});
 
   /* ============== Helpers ============== */
-  const $ = id => document.getElementById(id);
+  const $ = (id)=> document.getElementById(String(id).replace(/^#/,'') );
   const setText = (id,t)=>{const n=$(id); if(n) n.textContent=t; };
   const setHTML = (id,h)=>{const n=$(id); if(n) n.innerHTML=h; };
+  const on = (id,ev,fn)=>{ const el=$(id); if(el) el.addEventListener(ev,fn); };
   const canon = s => (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase();
   const sleep = ms => new Promise(r=>setTimeout(r,ms));
   const DEVICE_ID = (()=>{try{const k='cc_device_id';let v=localStorage.getItem(k);if(!v){v=crypto.randomUUID();localStorage.setItem(k,v)}return v}catch{return 'unknown'}})();
@@ -231,51 +238,53 @@
 
   /* ============== Red / Offline ============== */
   function updateNetBadge(){
-    const on = navigator.onLine;
-    const b = $('#offlineBadge'); if(b){ b.textContent = on? 'En línea' : 'Sin conexión';
-      b.className = 'ml-auto text-xs px-2 py-1 rounded ' + (on? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'); }
-    setText('netStatus', on? 'Conectado' : 'Offline (se sincroniza al volver)');
+    const onl = navigator.onLine;
+    const b = $('#offlineBadge'); if(b){ b.textContent = onl? 'En línea' : 'Sin conexión';
+      b.className = 'ml-auto text-xs px-2 py-1 rounded ' + (onl? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'); }
+    setText('netStatus', onl? 'Conectado' : 'Offline (se sincroniza al volver)');
   }
   window.addEventListener('online', updateNetBadge);
   window.addEventListener('offline', updateNetBadge);
-  updateNetBadge();
 
-  /* ============== Tabs ============== */
-  const TABS = Array.from(document.querySelectorAll('#tabs .tab-btn'));
-  const PANES = { importar:$('#tab-importar'), folio:$('#tab-folio'), escanear:$('#tab-escanear'), reporte:$('#tab-reporte'), historial:$('#tab-historial') };
-  TABS.forEach(btn=>{
-    btn.addEventListener('click',()=>{
-      const name = btn.dataset.tab;
-      TABS.forEach(b=>b.classList.remove('border-blue-600','text-blue-600'));
-      btn.classList.add('border-blue-600','text-blue-600');
-      Object.values(PANES).forEach(p=>p.classList.add('hidden'));
-      PANES[name]?.classList.remove('hidden');
+  /* ============== Tabs seguros ============== */
+  function initTabs(){
+    const tabs = document.querySelectorAll('#tabs [data-tab]');
+    tabs.forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        const name = btn.dataset.tab;
+        tabs.forEach(b=>b.classList.remove('border-blue-600','text-blue-600'));
+        btn.classList.add('border-blue-600','text-blue-600');
+        ['importar','folio','escanear','reporte','historial'].forEach(t=>{ const s=$('tab-'+t); if(s) s.classList.add('hidden'); });
+        const active = $('tab-'+name); if(active) active.classList.remove('hidden');
+      });
     });
-  });
+  }
 
-  /* ============== Auth (Google) ============== */
-  $('#btnGoogleSignIn').addEventListener('click', async()=>{
-    try{ await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); }
-    catch(e){ console.error(e); alert('No se pudo iniciar sesión'); }
-  });
-  $('#btnSignOut').addEventListener('click', ()=> auth.signOut());
+  /* ============== Auth (Google) ) ============== */
+  function initAuth(){
+    on('btnGoogleSignIn','click', async()=>{
+      try{ await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); }
+      catch(e){ console.error(e); alert('No se pudo iniciar sesión'); }
+    });
+    on('btnSignOut','click', ()=> auth.signOut());
 
-  auth.onAuthStateChanged(async(user)=>{
-    USER = user || null;
-    if(USER){
-      setHTML('userBox', `<span class='hidden md:inline'>${USER.displayName||USER.email||'Usuario'}</span>`);
-      $('#btnGoogleSignIn').classList.add('hidden');
-      $('#btnSignOut').classList.remove('hidden');
-      const urlF = new URL(location.href).searchParams.get('folio');
-      if(urlF && !FOLIO_ID) { try{ await setActiveFolio(urlF); }catch{} }
-    } else {
-      setHTML('userBox','Sesión no iniciada');
-      $('#btnGoogleSignIn').classList.remove('hidden');
-      $('#btnSignOut').classList.add('hidden');
-      FOLIO_ID = null; FOLIO_DOC = null; COUNTS_CACHE.clear();
-      setText('folioStatus','—'); setHTML('historyBody',''); setHTML('reportBody',''); setText('totals','');
-    }
-  });
+    auth.onAuthStateChanged(async(user)=>{
+      USER = user || null;
+      if(USER){
+        setHTML('userBox', `<span class='hidden md:inline'>${USER.displayName||USER.email||'Usuario'}</span>`);
+        $('#btnGoogleSignIn')?.classList.add('hidden');
+        $('#btnSignOut')?.classList.remove('hidden');
+        const urlF = new URL(location.href).searchParams.get('folio');
+        if(urlF && !FOLIO_ID) { try{ await setActiveFolio(urlF); }catch{} }
+      } else {
+        setHTML('userBox','Sesión no iniciada');
+        $('#btnGoogleSignIn')?.classList.remove('hidden');
+        $('#btnSignOut')?.classList.add('hidden');
+        FOLIO_ID = null; FOLIO_DOC = null; COUNTS_CACHE.clear();
+        setText('folioStatus','—'); setHTML('historyBody',''); setHTML('reportBody',''); setText('totals','');
+      }
+    });
+  }
 
   /* ============== Catálogo (Storage) ============== */
   const STORAGE_CATALOG_PATH = 'static/catalogo-master.xlsx';
@@ -304,7 +313,6 @@
       setHTML('catalogFirstRows',exampleRows(5));
     }catch(e){ setText('masterStatus','❌ Error: '+(e?.message||e)); console.error(e); }
   }
-
   function parseCatalogRows(rows){
     CATALOGO = { byBarcode:new Map(), byModelo:new Map(), headers:(rows[0]||[]).map(String) };
     const H = CATALOGO.headers.map(h=>canon(h));
@@ -330,19 +338,13 @@
       if(!CATALOGO.byModelo.has(mod)) CATALOGO.byModelo.set(mod, { color, talla });
     }
   }
-  function diagCatalog(){
-    const mods = CATALOGO.byModelo.size;
-    const codes = CATALOGO.byBarcode.size;
-    return `Modelos: ${mods}\nClaves de búsqueda: ${codes}\nEncabezados: ${CATALOGO.headers.join(' | ')}`;
-  }
-  function exampleRows(n=5){
-    const arr=[]; let i=0; for(const [code,item] of CATALOGO.byBarcode){ if(i++>=n) break; arr.push([item.mod,item.color,item.talla,code].join(' | ')); } return arr.join('\n');
-  }
+  function diagCatalog(){ const mods = CATALOGO.byModelo.size; const codes = CATALOGO.byBarcode.size; return `Modelos: ${mods}\nClaves: ${codes}\nCols: ${CATALOGO.headers.join(' | ')}`; }
+  function exampleRows(n=5){ const arr=[]; let i=0; for(const [code,item] of CATALOGO.byBarcode){ if(i++>=n) break; arr.push([item.mod,item.color,item.talla,code].join(' | ')); } return arr.join('\n'); }
 
-  $('#btnRecargarCloud')?.addEventListener('click',()=>cargarCatalogoStorage(false));
-  $('#btnForzarURL')?.addEventListener('click',()=>cargarCatalogoStorage(true));
-  $('#btnResumenCat')?.addEventListener('click',()=>alert($('#masterStatus').textContent+'\n\n'+($('#catalogDiag').textContent||'')));
-  $('#btnBorrarCat')?.addEventListener('click',()=>{ CATALOGO={byBarcode:new Map(), byModelo:new Map(), headers:[]}; setText('masterStatus','Catálogo en memoria limpiado.'); setHTML('catalogFirstRows','—'); setHTML('catalogDiag','—'); });
+  on('btnRecargarCloud','click',()=>cargarCatalogoStorage(false));
+  on('btnForzarURL','click',()=>cargarCatalogoStorage(true));
+  on('btnResumenCat','click',()=>alert($('#masterStatus').textContent+'\n\n'+($('#catalogDiag').textContent||'')));
+  on('btnBorrarCat','click',()=>{ CATALOGO={byBarcode:new Map(), byModelo:new Map(), headers:[]}; setText('masterStatus','Catálogo en memoria limpiado.'); setHTML('catalogFirstRows','—'); setHTML('catalogDiag','—'); });
 
   /* ============== Existencias (CSV) ============== */
   function parseExistenciasCSV(text){
@@ -355,10 +357,10 @@
     }
     return map;
   }
-  $('#btnCargarExistencias')?.addEventListener('click', async()=>{
+  on('btnCargarExistencias','click', async()=>{
     if(!USER) return alert('Inicia sesión primero.');
     if(!FOLIO_ID) return alert('Primero crea o únete a un folio.');
-    const txt = $('#existenciasInput').value||'';
+    const txt = $('#existenciasInput')?.value||'';
     const map = parseExistenciasCSV(txt);
     const obj = Object.fromEntries(map);
     try{
@@ -366,12 +368,12 @@
       setText('existStatus',`Existencias cargadas: ${map.size} modelos.`);
     }catch(e){ console.error(e); alert('Error guardando existencias. Verifica permisos del folio.'); }
   });
-  $('#btnLimpiarExistencias')?.addEventListener('click',()=>{ $('#existenciasInput').value=''; setText('existStatus','—'); });
+  on('btnLimpiarExistencias','click',()=>{ const el=$('existenciasInput'); if(el) el.value=''; setText('existStatus','—'); });
 
   /* ============== Folio (membresías) ============== */
   async function crearFolio(){
     if(!USER) return alert('Inicia sesión primero.');
-    const name = ($('#folioName').value||'').trim() || 'Cíclico';
+    const name = ($('#folioName')?.value||'').trim() || 'Cíclico';
     const ref = db.collection('folios').doc();
     await ref.set({ name, createdAt: firebase.firestore.FieldValue.serverTimestamp(), updatedAt: firebase.firestore.FieldValue.serverTimestamp(), state:'open', catalogPath: STORAGE_CATALOG_PATH, ownerUid: USER.uid, members: [USER.uid] });
     await setActiveFolio(ref.id);
@@ -384,27 +386,28 @@
     FOLIO_DOC = snap.data();
     const isMember = (FOLIO_DOC.members||[]).includes(USER.uid) || FOLIO_DOC.ownerUid===USER.uid;
     setText('folioStatus', isMember? `Folio activo: ${id} — ${FOLIO_DOC.name||''}` : `Folio ${id} — No eres miembro (pulsa Unirse)`);
-    $('#joinFolioId').value = id;
+    const j = $('joinFolioId'); if(j) j.value = id;
     const url = new URL(location.href); url.searchParams.set('folio', id); history.replaceState(null,'',url.toString());
     subscribeCounts();
     subscribeScans();
     watchFolio();
+    await refreshCameras();
   }
   async function unirseFolio(){
     if(!USER) return alert('Inicia sesión primero.');
-    const id = ($('#joinFolioId').value||'').trim(); if(!id) return alert('Ingresa un ID');
+    const id = ($('#joinFolioId')?.value||'').trim(); if(!id) return alert('Ingresa un ID');
     const ref = db.collection('folios').doc(id);
     const snap = await ref.get(); if(!snap.exists){ alert('Folio no encontrado'); return; }
     await ref.update({ members: firebase.firestore.FieldValue.arrayUnion(USER.uid), updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
     await setActiveFolio(id);
   }
-  $('#btnCrearFolio')?.addEventListener('click',crearFolio);
-  $('#btnUnirseFolio')?.addEventListener('click',unirseFolio);
-  $('#btnCerrarFolio')?.addEventListener('click',async()=>{
+  on('btnCrearFolio','click',crearFolio);
+  on('btnUnirseFolio','click',unirseFolio);
+  on('btnCerrarFolio','click',async()=>{
     if(!USER) return alert('Inicia sesión primero.'); if(!FOLIO_ID) return;
     await db.collection('folios').doc(FOLIO_ID).update({state:'closed', updatedAt: firebase.firestore.FieldValue.serverTimestamp()}); alert('Folio cerrado.');
   });
-  $('#btnCopiarLink')?.addEventListener('click',()=>{
+  on('btnCopiarLink','click',()=>{
     if(!FOLIO_ID) return alert('Sin folio activo');
     const url = new URL(location.href); url.searchParams.set('folio', FOLIO_ID);
     navigator.clipboard.writeText(url.toString()); alert('Enlace copiado.');
@@ -415,26 +418,14 @@
   function subscribeCounts(){
     unsubCounts?.(); COUNTS_CACHE.clear(); if(!FOLIO_ID) return;
     unsubCounts = db.collection('folios').doc(FOLIO_ID).collection('counts')
-      .onSnapshot((snap)=>{
-        snap.docChanges().forEach(ch=>{ COUNTS_CACHE.set(ch.doc.id, (ch.doc.data()?.qty)||0); });
-        renderTotals();
-      });
+      .onSnapshot((snap)=>{ snap.docChanges().forEach(ch=>{ COUNTS_CACHE.set(ch.doc.id, (ch.doc.data()?.qty)||0); }); renderTotals(); });
   }
   function subscribeScans(){
     unsubScans?.(); if(!FOLIO_ID) return;
-    unsubScans = db.collection('folios').doc(FOLIO_ID).collection('scans')
-      .orderBy('ts','desc').limit(500)
-      .onSnapshot((snap)=>{
-        const rows=[]; snap.forEach(d=>{ const x=d.data(); const dt=x.ts?.toDate? x.ts.toDate(): (x.ts||new Date());
-          rows.push(`<tr><td>${fmtDate(dt)}</td><td>${esc(x.code)}</td><td>${esc(x.mod||'')}</td><td>${esc(x.color||'')}</td><td>${esc(x.talla||'')}</td><td>${esc(x.user||'')}</td><td>${esc(x.deviceId||'')}</td></tr>`); });
-        setHTML('historyBody', rows.join(''));
-      });
+    unsubScans = db.collection('folios').doc(FOLIO_ID).collection('scans').orderBy('ts','desc').limit(500)
+      .onSnapshot((snap)=>{ const rows=[]; snap.forEach(d=>{ const x=d.data(); const dt=x.ts?.toDate? x.ts.toDate(): (x.ts||new Date()); rows.push(`<tr><td>${fmtDate(dt)}</td><td>${esc(x.code)}</td><td>${esc(x.mod||'')}</td><td>${esc(x.color||'')}</td><td>${esc(x.talla||'')}</td><td>${esc(x.user||'')}</td><td>${esc(x.deviceId||'')}</td></tr>`); }); setHTML('historyBody', rows.join('')); });
   }
-  function watchFolio(){
-    unsubFolio?.(); if(!FOLIO_ID) return;
-    unsubFolio = db.collection('folios').doc(FOLIO_ID)
-      .onSnapshot((snap)=>{ if(!snap.exists) return; FOLIO_DOC = snap.data(); renderTotals(); renderReport(); });
-  }
+  function watchFolio(){ unsubFolio?.(); if(!FOLIO_ID) return; unsubFolio = db.collection('folios').doc(FOLIO_ID).onSnapshot((snap)=>{ if(!snap.exists) return; FOLIO_DOC = snap.data(); renderTotals(); renderReport(); }); }
 
   function fmtDate(d){ const p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; }
   function esc(s){ return String(s).replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"})[m]); }
@@ -442,57 +433,58 @@
   /* ============== GS1 / EAN helpers ============== */
   function computeEAN13CheckDigit(d12){ const digits=d12.split('').map(Number); let sum=0; for(let i=0;i<12;i++){ sum+=digits[i]*(i%2===0?1:3); } return String((10-(sum%10))%10); }
   function toEAN13FromGTIN14(gtin14){ if(!/^\d{14}$/.test(gtin14)) return null; const base12=gtin14.slice(1,13); return base12 + computeEAN13CheckDigit(base12); }
-  function tryParseGS1(raw){
-    const s=String(raw).trim(); const GS=String.fromCharCode(29); const normalized=s.replace(/\s+/g,''); const parts=[]; const reParen=/\((\d{2,4})\)([^()]+)/g; let m;
-    while((m=reParen.exec(normalized))){ parts.push({ai:m[1],val:m[2]}); }
-    if(parts.length===0 && normalized.includes(GS)){
-      let rest=normalized; while(rest.length>0){ const ai=rest.slice(0,2); if(!/\d{2}/.test(ai)) break; rest=rest.slice(2);
-        const FIXED={'01':14,'17':6,'15':6,'11':6,'13':6,'12':6}; const lenFixed=FIXED[ai]||0;
-        if(lenFixed>0){ parts.push({ai,val:rest.slice(0,lenFixed)}); rest=rest.slice(lenFixed); if(rest[0]===GS) rest=rest.slice(1); }
-        else { const idx=rest.indexOf(GS); const val=idx>=0? rest.slice(0,idx): rest; parts.push({ai,val}); rest = idx>=0? rest.slice(idx+1):''; }
-      }
-    }
-    if(parts.length===0) return null; const aiMap=Object.fromEntries(parts.map(p=>[p.ai,p.val]));
-    if(aiMap['01']){ const gtin14=aiMap['01'].slice(0,14); const ean13=toEAN13FromGTIN14(gtin14); return { type:'GS1', raw:s, gtin14, ean13, ai: aiMap }; }
-    return { type:'GS1', raw:s, ai: aiMap };
-  }
-  function normalizeBarcode(input){
-    const raw=String(input).trim(); const maybeGS1 = raw.includes('(') || raw.includes(String.fromCharCode(29)) || raw.startsWith('01');
-    if(maybeGS1){ const parsed=tryParseGS1(raw); if(parsed?.ean13) return { type:'GS1', ean13: parsed.ean13, meta: parsed }; }
-    if(/^\d{13}$/.test(raw)){ const cd=computeEAN13CheckDigit(raw.slice(0,12)); if(raw[12]!==cd){ return { type:'EAN13', ean13: raw.slice(0,12)+cd, corrected:true }; } return { type:'EAN13', ean13: raw }; }
-    if(/^\d{12}$/.test(raw)){ return { type:'UPCA', ean13: '0'+raw }; }
-    if(/^\d{14}$/.test(raw)){ const ean13=toEAN13FromGTIN14(raw); if(ean13) return { type:'GTIN14', ean13 }; }
-    return { type:'RAW', raw };
-  }
+  function tryParseGS1(raw){ const s=String(raw).trim(); const GS=String.fromCharCode(29); const normalized=s.replace(/\s+/g,''); const parts=[]; const reParen=/\((\d{2,4})\)([^()]+)/g; let m; while((m=reParen.exec(normalized))){ parts.push({ai:m[1],val:m[2]}); } if(parts.length===0 && normalized.includes(GS)){ let rest=normalized; while(rest.length>0){ const ai=rest.slice(0,2); if(!/\d{2}/.test(ai)) break; rest=rest.slice(2); const FIXED={'01':14,'17':6,'15':6,'11':6,'13':6,'12':6}; const lenFixed=FIXED[ai]||0; if(lenFixed>0){ parts.push({ai,val:rest.slice(0,lenFixed)}); rest=rest.slice(lenFixed); if(rest[0]===GS) rest=rest.slice(1); } else { const idx=rest.indexOf(GS); const val=idx>=0? rest.slice(0,idx): rest; parts.push({ai,val}); rest = idx>=0? rest.slice(idx+1):''; } } } if(parts.length===0) return null; const aiMap=Object.fromEntries(parts.map(p=>[p.ai,p.val])); if(aiMap['01']){ const gtin14=aiMap['01'].slice(0,14); const ean13=toEAN13FromGTIN14(gtin14); return { type:'GS1', raw:s, gtin14, ean13, ai: aiMap }; } return { type:'GS1', raw:s, ai: aiMap }; }
+  function normalizeBarcode(input){ const raw=String(input).trim(); const maybeGS1 = raw.includes('(') || raw.includes(String.fromCharCode(29)) || raw.startsWith('01'); if(maybeGS1){ const parsed=tryParseGS1(raw); if(parsed?.ean13) return { type:'GS1', ean13: parsed.ean13, meta: parsed }; } if(/^\d{13}$/.test(raw)){ const cd=computeEAN13CheckDigit(raw.slice(0,12)); if(raw[12]!==cd){ return { type:'EAN13', ean13: raw.slice(0,12)+cd, corrected:true }; } return { type:'EAN13', ean13: raw }; } if(/^\d{12}$/.test(raw)){ return { type:'UPCA', ean13: '0'+raw }; } if(/^\d{14}$/.test(raw)){ const ean13=toEAN13FromGTIN14(raw); if(ean13) return { type:'GTIN14', ean13 }; } return { type:'RAW', raw }; }
 
-  /* ============== Escáner ============== */
-  let scanning=false;
-  $('#btnStartScan')?.addEventListener('click',startScanner);
-  $('#btnStopScan')?.addEventListener('click',stopScanner);
-  $('#manualCode')?.addEventListener('keydown',e=>{ if(e.key==='Enter'){ const v=e.currentTarget.value.trim(); if(v) handleBarcode(v); e.currentTarget.value=''; }});
-  $('#btnSimular')?.addEventListener('click',()=>stressSim(500));
+  /* ============== Escáner + Cámara/Linterna ============== */
+  let scanning=false; let activeTrack=null; let TORCH=false;
+  on('btnStartScan','click',startScanner);
+  on('btnStopScan','click',stopScanner);
+  on('btnRefreshCams','click',refreshCameras);
+  on('btnTorch','click',toggleTorch);
+  on('manualCode','keydown',e=>{ if(e.key==='Enter'){ const v=e.currentTarget.value.trim(); if(v) handleBarcode(v); e.currentTarget.value=''; }});
+  on('btnSimular','click',()=>stressSim(500));
+
+  async function refreshCameras(){
+    try{
+      if(!navigator.mediaDevices?.enumerateDevices) return;
+      const list = await navigator.mediaDevices.enumerateDevices();
+      const cams = list.filter(d=>d.kind==='videoinput');
+      const sel = $('cameraSelect'); if(!sel) return;
+      sel.innerHTML = cams.map(d=>`<option value="${d.deviceId}">${d.label||('Cam '+d.deviceId.slice(-4))}</option>`).join('');
+    }catch(e){ console.warn('enumerateDevices',e); }
+  }
+  function getSelectedDeviceId(){ return $('cameraSelect')?.value || null; }
 
   async function startScanner(){
     if(!USER) return alert('Inicia sesión primero.'); if(!FOLIO_ID) return alert('Sin folio activo'); if(scanning) return; if(!window.Quagga){ alert('Quagga2 no disponible'); return; }
-    scanning=true; setText('scanStatus','Iniciando cámara…');
+    scanning=true; setText('scanStatus','Iniciando cámara…'); TORCH=false; activeTrack=null;
+    const deviceId = getSelectedDeviceId();
+    const constraints = deviceId? { deviceId } : { facingMode: 'environment' };
     try{
-      await Quagga.init({
-        inputStream:{ name:'Live', type:'LiveStream', target: document.querySelector('#interactive'), constraints:{ facingMode:'environment' } },
-        decoder:{ readers:[ 'ean_reader','ean_8_reader','upc_reader','upc_e_reader','code_128_reader' ] },
-        locator:{ patchSize:'medium', halfSample:true }, locate:true
-      });
+      await Quagga.init({ inputStream:{ name:'Live', type:'LiveStream', target: document.querySelector('#interactive'), constraints }, decoder:{ readers:[ 'ean_reader','ean_8_reader','upc_reader','upc_e_reader','code_128_reader' ] }, locator:{ patchSize:'medium', halfSample:true }, locate:true });
       Quagga.start(); setText('scanStatus','Escaneando…');
+      // Captura track para linterna
+      setTimeout(()=>{ try{ const video=document.querySelector('#interactive video'); activeTrack = video?.srcObject?.getVideoTracks?.()[0] || (Quagga.CameraAccess?.getActiveTrack?.()); }catch{} },300);
       Quagga.onDetected(res=>{ const code=(res?.codeResult?.code||'').trim(); if(code){ handleBarcode(code); } });
     }catch(e){ console.error(e); alert('No se pudo iniciar el escáner'); scanning=false; }
   }
-  function stopScanner(){ try{ Quagga.stop(); }catch{} scanning=false; setText('scanStatus','Detenido'); }
+  function stopScanner(){ try{ Quagga.stop(); }catch{} scanning=false; setText('scanStatus','Detenido'); activeTrack=null; TORCH=false; }
+
+  async function toggleTorch(){
+    try{
+      if(!activeTrack){ const video=document.querySelector('#interactive video'); activeTrack = video?.srcObject?.getVideoTracks?.()[0]; }
+      if(!activeTrack) return alert('Track de cámara no disponible aún. Inicia la cámara.');
+      TORCH = !TORCH;
+      await activeTrack.applyConstraints({ advanced: [{ torch: TORCH }] });
+      setText('scanStatus', TORCH? 'Linterna: ON' : 'Linterna: OFF');
+    }catch(e){ console.warn('Torch no soportada', e?.message||e); alert('Este dispositivo/navegador no soporta linterna.'); }
+  }
 
   async function handleBarcode(code){
     if(!USER) return alert('Inicia sesión primero.'); if(!FOLIO_ID) return alert('No hay folio activo'); if(CATALOGO.byBarcode.size===0) return alert('Catálogo no cargado');
     const norm = normalizeBarcode(code);
-    let item = null;
-    if(norm.ean13){ item = CATALOGO.byBarcode.get(norm.ean13) || CATALOGO.byBarcode.get(norm.ean13.replace(/^0/,'')); }
-    if(!item){ item = CATALOGO.byBarcode.get(String(code).trim()); }
+    let item = null; if(norm.ean13){ item = CATALOGO.byBarcode.get(norm.ean13) || CATALOGO.byBarcode.get(norm.ean13.replace(/^0/,'')); } if(!item){ item = CATALOGO.byBarcode.get(String(code).trim()); }
     if(!item){ setText('lastItem',`Código no encontrado: ${String(code)}`); beep(false); return; }
     await registrarScan(item, String(code).trim(), norm?.meta?.ai || {});
     const gs1Info = norm?.meta?.ai ? ` [GS1 ${(norm.meta.ai['17']? 'EXP '+norm.meta.ai['17']+' ':'')}${norm.meta.ai['10']? 'LOT '+norm.meta.ai['10']+' ':''}${norm.meta.ai['21']? 'SER '+norm.meta.ai['21']:''}]` : '';
@@ -509,51 +501,47 @@
     ]).catch(e=>{ console.error(e); alert('Error registrando escaneo (revisar permisos/estado folio).'); });
   }
 
-  function renderTotals(){
-    if(!FOLIO_DOC) return; const ex = FOLIO_DOC.existencias || {}; let totalEsc=0, totalTheo=0, dif=0;
-    for(const [mod,qty] of COUNTS_CACHE){ totalEsc += qty; dif += (qty - (ex[mod]||0)); }
-    for(const v of Object.values(ex)) totalTheo += (v||0);
-    setText('totals', `Escaneado: ${totalEsc} | Teórico: ${totalTheo} | Diferencia: ${dif}`);
-  }
-
+  function renderTotals(){ if(!FOLIO_DOC) return; const ex = FOLIO_DOC.existencias || {}; let totalEsc=0, totalTheo=0, dif=0; for(const [mod,qty] of COUNTS_CACHE){ totalEsc += qty; dif += (qty - (ex[mod]||0)); } for(const v of Object.values(ex)) totalTheo += (v||0); setText('totals', `Escaneado: ${totalEsc} | Teórico: ${totalTheo} | Diferencia: ${dif}`); }
   function beep(ok=true){ try{ const ctx=new (window.AudioContext||window.webkitAudioContext)(); const o=ctx.createOscillator(); const g=ctx.createGain(); o.connect(g); g.connect(ctx.destination); o.type='sine'; o.frequency.value = ok? 880: 220; g.gain.value=.05; o.start(); setTimeout(()=>{o.stop(); ctx.close()},120); }catch{} }
 
-  /* ============== Reporte ============== */
-  $('#btnRefrescarReporte')?.addEventListener('click',renderReport);
-  $('#btnExportarCSV')?.addEventListener('click',()=>{
+  /* ============== Reporte + Admin ZIP ============== */
+  on('btnRefrescarReporte','click',renderReport);
+  on('btnExportarCSV','click',()=>{
     const rows = buildReportRows();
     const csv = ['Modelo,Teorico,Escaneado,Diferencia'].concat(rows.map(r=>[r.mod,r.theo,r.scan,r.diff].join(','))).join('\n');
     const blob = new Blob([csv],{type:'text/csv;charset=utf-8;'});
     const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`reporte_${FOLIO_ID||'sin_folio'}.csv`; a.click(); URL.revokeObjectURL(a.href);
   });
-  $('#btnImprimir')?.addEventListener('click',()=>window.print());
+  on('btnImprimir','click',()=>window.print());
+  on('btnAdminExport','click',adminExportZip);
 
-  function buildReportRows(){
-    const ex = FOLIO_DOC?.existencias || {}; const set = new Set([...Object.keys(ex), ...COUNTS_CACHE.keys()]); const rows = [];
-    for(const mod of set){ const theo = Number(ex[mod]||0); const scan = Number(COUNTS_CACHE.get(mod)||0); rows.push({ mod, theo, scan, diff: scan-theo }); }
-    rows.sort((a,b)=> a.mod.localeCompare(b.mod)); return rows;
-  }
-  function renderReport(){
-    const rows = buildReportRows();
-    const html = rows.map(r=>`<tr>
-      <td>${esc(r.mod)}</td>
-      <td class="text-right">${r.theo}</td>
-      <td class="text-right">${r.scan}</td>
-      <td class="text-right ${r.diff===0?'':'font-semibold'} ${r.diff>0?'text-emerald-600':r.diff<0?'text-red-600':''}">${r.diff}</td>
-    </tr>`).join('');
-    setHTML('reportBody', html||'<tr><td colspan="4" class="text-center text-gray-400">Sin datos</td></tr>');
+  function buildReportRows(){ const ex = FOLIO_DOC?.existencias || {}; const set = new Set([...Object.keys(ex), ...COUNTS_CACHE.keys()]); const rows = []; for(const mod of set){ const theo = Number(ex[mod]||0); const scan = Number(COUNTS_CACHE.get(mod)||0); rows.push({ mod, theo, scan, diff: scan-theo }); } rows.sort((a,b)=> a.mod.localeCompare(b.mod)); return rows; }
+  function renderReport(){ const rows = buildReportRows(); const html = rows.map(r=>`<tr><td>${esc(r.mod)}</td><td class=\"text-right\">${r.theo}</td><td class=\"text-right\">${r.scan}</td><td class=\"text-right ${r.diff===0?'':'font-semibold'} ${r.diff>0?'text-emerald-600':r.diff<0?'text-red-600':''}\">${r.diff}</td></tr>`).join(''); setHTML('reportBody', html||'<tr><td colspan=\"4\" class=\"text-center text-gray-400\">Sin datos</td></tr>'); }
+
+  async function adminExportZip(){
+    if(!USER || !FOLIO_ID) return alert('Inicia sesión y elige un folio.');
+    const folioRef = db.collection('folios').doc(FOLIO_ID);
+    const [countsSnap, scansSnap] = await Promise.all([
+      folioRef.collection('counts').get(),
+      folioRef.collection('scans').orderBy('ts','asc').get()
+    ]);
+    const counts = []; countsSnap.forEach(d=>counts.push({ mod:d.id, qty:d.data().qty||0 }));
+    const scans = []; scansSnap.forEach(d=>{ const x=d.data(); scans.push({ id:d.id, code:x.code, mod:x.mod, color:x.color||'', talla:x.talla||'', ts:x.ts?.toDate?.()?.toISOString?.()||'', user:x.user||'', deviceId:x.deviceId||'', ai:x.ai||{} }); });
+    const countsCSV = ['mod,qty'].concat(counts.map(r=>`${r.mod},${r.qty}`)).join('\n');
+    const scansCSV  = ['id,code,mod,color,talla,ts,user,deviceId,ai_json'].concat(scans.map(x=>`${x.id},${x.code},${x.mod},${x.color},${x.talla},${x.ts},${x.user},${x.deviceId},${JSON.stringify(x.ai)}`)).join('\n');
+    const zip = new JSZip();
+    zip.file(`counts_${FOLIO_ID}.csv`, countsCSV);
+    zip.file(`scans_${FOLIO_ID}.csv`, scansCSV);
+    zip.file(`counts_${FOLIO_ID}.json`, JSON.stringify(counts,null,2));
+    zip.file(`scans_${FOLIO_ID}.json`, JSON.stringify(scans,null,2));
+    const blob = await zip.generateAsync({type:'blob'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`folio_${FOLIO_ID}_export.zip`; a.click(); URL.revokeObjectURL(a.href);
   }
 
-  /* ============== Stress test ============== */
-  async function stressSim(n=500){
-    if(!USER) return alert('Inicia sesión primero.'); if(!FOLIO_ID) return alert('Sin folio activo'); if(CATALOGO.byBarcode.size===0) return alert('Carga el catálogo primero');
-    const codes = Array.from(CATALOGO.byBarcode.keys()); setText('scanStatus', `Simulando ${n} lecturas…`);
-    for(let i=0;i<n;i++){ const code = codes[i % codes.length]; await handleBarcode(code); if(i % 25 === 0) await sleep(5); }
-    setText('scanStatus', `Simulación terminada (${n}).`);
-  }
-
-  /* ============== Inicio ============== */
-  cargarCatalogoStorage(false);
+  /* ============== Inicio (esperar DOM) ============== */
+  window.addEventListener('DOMContentLoaded',()=>{
+    updateNetBadge(); initTabs(); initAuth(); cargarCatalogoStorage(false);
+  });
 })();
 </script>
 </body>
