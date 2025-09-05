@@ -1,3 +1,4 @@
+<!-- path: /index.html -->
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -8,13 +9,16 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="icons/icon-192.png" />
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>window.addEventListener('error',e=>console.error(e?.error||e));</script>
+  <!-- Quagga2 (escáner) -->
+  <script src="https://unpkg.com/@ericblade/quagga2/dist/quagga.min.js"></script>
   <!-- SheetJS primario -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js"></script>
   <style>
     .btn{padding:.5rem .75rem;border-radius:.5rem;font-size:.875rem}
     .table th,.table td{border-bottom:1px solid #e5e7eb;padding:.25rem .5rem}
     .card{background:#fff;border-radius:1rem;box-shadow:0 1px 3px rgba(0,0,0,.08);padding:1rem}
-    .cam{height:45vh;max-height:420px;background:#000;border-radius:1rem;overflow:hidden}
+    .cam{height:45vh;max-height:420px;background:#000;border-radius:1rem;overflow:hidden;position:relative}
     video{width:100%;height:100%;object-fit:cover}
     #overlay{position:absolute;inset:0;pointer-events:none}
     pre{background:#f8fafc;border-radius:.75rem;padding:.5rem;overflow:auto}
@@ -24,58 +28,180 @@
 </head>
 <body class="bg-gray-50 text-gray-900">
 <div class="max-w-7xl mx-auto p-4">
-  <header class="mb-4 no-print">
-    <h1 class="text-2xl font-bold">Conteo Cíclico — Catálogo en Firebase Storage</h1>
-    <p class="text-sm text-gray-600">Soporta Catálogo CSV/XLSX en Storage. Existencia por folio (Firestore). Escaneo con cámara o manual.</p>
+  <header class="mb-4 no-print flex items-center justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-bold">Conteo Cíclico — Catálogo + Existencias + Escaneo</h1>
+      <p class="text-sm text-gray-600">Configuración en PC, escaneo simultáneo en móviles por <b>folio</b> con Firestore.</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <div id="netStatus" class="text-xs text-gray-500">—</div>
+      <div id="userBox" class="text-xs text-gray-600"></div>
+      <button id="btnGoogleSignIn" class="btn bg-emerald-600 text-white">Iniciar sesión</button>
+      <button id="btnSignOut" class="btn bg-gray-200 hidden">Salir</button>
+    </div>
   </header>
 
   <!-- Tabs -->
   <div class="border-b border-gray-200 mb-4 no-print">
-    <nav class="-mb-px flex gap-2" id="tabs">
+    <nav class="-mb-px flex gap-2" id="tabs" role="tablist">
       <button data-tab="importar" class="tab-btn border-b-2 border-blue-600 text-blue-600 px-4 py-2 text-sm font-medium">1) Importar</button>
-      <button data-tab="escanear" class="tab-btn border-b-2 border-transparent hover:text-blue-600 hover:border-blue-600 px-4 py-2 text-sm font-medium">2) Escanear</button>
-      <button data-tab="reporte" class="tab-btn border-b-2 border-transparent hover:text-blue-600 hover:border-blue-600 px-4 py-2 text-sm font-medium">3) Reporte</button>
-      <button data-tab="historial" class="tab-btn border-b-2 border-transparent hover:text-blue-600 hover:border-blue-600 px-4 py-2 text-sm font-medium">4) Historial</button>
+      <button data-tab="folio" class="tab-btn border-b-2 border-transparent hover:text-blue-600 hover:border-blue-600 px-4 py-2 text-sm font-medium">2) Folio</button>
+      <button data-tab="escanear" class="tab-btn border-b-2 border-transparent hover:text-blue-600 hover:border-blue-600 px-4 py-2 text-sm font-medium">3) Escanear</button>
+      <button data-tab="reporte" class="tab-btn border-b-2 border-transparent hover:text-blue-600 hover:border-blue-600 px-4 py-2 text-sm font-medium">4) Reporte</button>
+      <button data-tab="historial" class="tab-btn border-b-2 border-transparent hover:text-blue-600 hover:border-blue-600 px-4 py-2 text-sm font-medium">5) Historial</button>
     </nav>
   </div>
 
   <!-- Importar -->
-  <section id="tab-importar" class="tab-pane block">
+  <section id="tab-importar" class="tab-pane block" role="tabpanel">
     <div class="grid md:grid-cols-2 gap-4">
       <!-- Catálogo -->
       <div class="card">
         <h2 class="font-semibold mb-2">Catálogo maestro (Firebase Storage)</h2>
         <p class="text-xs text-gray-600 mb-2">
-          Archivo esperado: <code>static/catalogo-master.xlsx</code> (o .csv). Encabezados: <b>CODIGO_BARRA / CODIGO / EAN / UPC</b>, <b>MOD</b>, <b>COLOR</b>, <b>TALLA</b>.
+          Archivo esperado: <code>static/catalogo-master.xlsx</code> (o .csv). Encabezados aceptados: <b>CODIGO_BARRA / CODIGO / EAN / UPC</b>, <b>MOD</b>, <b>COLOR</b>, <b>TALLA</b>.
         </p>
         <div class="flex flex-wrap gap-2">
-          <button id="btnRecargarCloud" class="btn bg-blue-600 text-white">Recargar</button>
-          <button id="btnResumenCat" class="btn bg-gray-100">Resumen</button>
-          <button id="btnBorrarCat" class="btn bg-red-600 text-white">Borrar caché</button>
-          <button id="btnForzarURL" class="btn bg-amber-500 text-white">Forzar URL única</button>
+          <button id="btnRecargarCloud" class="btn bg-blue-600 text-white" aria-label="Recargar catálogo desde Storage">Recargar</button>
+          <button id="btnResumenCat" class="btn bg-gray-100" aria-label="Ver resumen del catálogo">Resumen</button>
+          <button id="btnBorrarCat" class="btn bg-red-600 text-white" aria-label="Borrar caché de catálogo">Borrar caché</button>
+          <button id="btnForzarURL" class="btn bg-amber-500 text-white" aria-label="Forzar URL única">Forzar URL única</button>
         </div>
-        <div id="masterStatus" class="text-xs text-gray-600 mt-2">—</div>
-        <details class="mt-3" open>
+        <div id="masterStatus" class="text-xs text-gray-600 mt-2" role="status">—</div>
+        <details class="mt-3">
           <summary class="text-sm font-medium">Diagnóstico catálogo</summary>
           <div class="text-xs mt-2 space-y-2" id="catalogDiag">—</div>
           <div class="text-xs mt-2 whitespace-pre-wrap" id="catalogFirstRows">—</div>
         </details>
       </div>
+
+      <!-- Existencias teóricas -->
+      <div class="card">
+        <h2 class="font-semibold mb-2">Existencias teóricas</h2>
+        <p class="text-xs text-gray-600 mb-2">Pega CSV simple con <code>MOD, CANTIDAD</code> (encabezados opcionales). Se guardará en el folio activo.</p>
+        <textarea id="existenciasInput" class="w-full h-40 p-2 border rounded" placeholder="MOD,CANTIDAD
+12345,10
+12346,5"></textarea>
+        <div class="mt-2 flex gap-2">
+          <button id="btnCargarExistencias" class="btn bg-blue-600 text-white">Cargar existencias</button>
+          <button id="btnLimpiarExistencias" class="btn bg-gray-100">Limpiar</button>
+        </div>
+        <div id="existStatus" class="text-xs text-gray-600 mt-2" role="status">—</div>
+      </div>
     </div>
   </section>
 
-  <!-- (Escanear, Reporte, Historial se mantienen igual que en tu versión) -->
+  <!-- Folio -->
+  <section id="tab-folio" class="tab-pane hidden" role="tabpanel">
+    <div class="card">
+      <h2 class="font-semibold mb-2">Folio de conteo</h2>
+      <div class="grid md:grid-cols-2 gap-4">
+        <div>
+          <label class="text-sm">Nombre del folio</label>
+          <input id="folioName" class="w-full p-2 border rounded" placeholder="Ej. Cíclico Sucursal Centro" />
+          <div class="mt-2 flex gap-2">
+            <button id="btnCrearFolio" class="btn bg-green-600 text-white">Crear folio</button>
+            <button id="btnCerrarFolio" class="btn bg-gray-200">Cerrar folio</button>
+          </div>
+        </div>
+        <div>
+          <label class="text-sm">Unirse a folio existente</label>
+          <input id="joinFolioId" class="w-full p-2 border rounded" placeholder="ID del folio" />
+          <div class="mt-2 flex gap-2">
+            <button id="btnUnirseFolio" class="btn bg-blue-600 text-white">Unirse</button>
+            <button id="btnCopiarLink" class="btn bg-gray-200">Copiar link de folio</button>
+          </div>
+        </div>
+      </div>
+      <div class="text-xs text-gray-600 mt-3" id="folioStatus" role="status">—</div>
+    </div>
+  </section>
 
+  <!-- Escanear -->
+  <section id="tab-escanear" class="tab-pane hidden" role="tabpanel">
+    <div class="grid md:grid-cols-2 gap-4">
+      <div class="card">
+        <h2 class="font-semibold mb-2">Cámara</h2>
+        <div class="cam" id="camWrap">
+          <div id="interactive" class="viewport w-full h-full"></div>
+          <div id="overlay" class="ring-2 ring-offset-2 ring-white/70 rounded"></div>
+        </div>
+        <div class="mt-2 flex gap-2 items-center">
+          <button id="btnStartScan" class="btn bg-blue-600 text-white">Iniciar</button>
+          <button id="btnStopScan" class="btn bg-gray-200">Detener</button>
+          <button id="btnSimular" class="btn bg-amber-500 text-white" title="Prueba de estrés">Simular 500</button>
+          <span id="offlineBadge" class="ml-auto text-xs px-2 py-1 rounded bg-gray-200">—</span>
+        </div>
+        <div class="text-xs text-gray-600 mt-2" id="scanStatus" role="status">—</div>
+      </div>
+      <div class="card">
+        <h2 class="font-semibold mb-2">Entrada manual</h2>
+        <input id="manualCode" class="w-full p-2 border rounded" placeholder="Escribe/pega un código de barras y Enter" />
+        <div class="mt-2">
+          <div id="lastItem" class="text-sm"></div>
+          <div id="totals" class="text-xs text-gray-600"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Reporte -->
+  <section id="tab-reporte" class="tab-pane hidden" role="tabpanel">
+    <div class="card">
+      <h2 class="font-semibold mb-2">Reporte vs Existencias</h2>
+      <div class="mb-2 flex gap-2">
+        <button id="btnRefrescarReporte" class="btn bg-blue-600 text-white">Refrescar</button>
+        <button id="btnExportarCSV" class="btn bg-gray-200">Exportar CSV</button>
+        <button id="btnImprimir" class="btn bg-gray-200">Imprimir</button>
+      </div>
+      <div class="overflow-auto max-h-[60vh]">
+        <table class="table w-full text-sm">
+          <thead class="sticky top-0 bg-white">
+            <tr>
+              <th class="text-left">Modelo</th>
+              <th class="text-right">Teórico</th>
+              <th class="text-right">Escaneado</th>
+              <th class="text-right">Diferencia</th>
+            </tr>
+          </thead>
+          <tbody id="reportBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Historial -->
+  <section id="tab-historial" class="tab-pane hidden" role="tabpanel">
+    <div class="card">
+      <h2 class="font-semibold mb-2">Historial de escaneos</h2>
+      <div class="text-xs text-gray-600 mb-2">Tiempo real (últimos 500). Usa búsqueda del navegador para filtrar.</div>
+      <div class="overflow-auto max-h-[60vh]">
+        <table class="table w-full text-sm">
+          <thead class="sticky top-0 bg-white">
+            <tr>
+              <th class="text-left">Fecha</th>
+              <th class="text-left">Código</th>
+              <th class="text-left">Modelo</th>
+              <th class="text-left">Color</th>
+              <th class="text-left">Talla</th>
+              <th class="text-left">Usuario</th>
+              <th class="text-left">Dispositivo</th>
+            </tr>
+          </thead>
+          <tbody id="historyBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
 </div>
 
-<script src="https://unpkg.com/@ericblade/quagga2/dist/quagga.min.js"></script>
-
 <script type="module">
+/* ================= Firebase ================= */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
-import { getStorage, ref, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-storage.js";
-import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
+import { getStorage, ref as sref, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-storage.js";
+import { getAuth, onAuthStateChanged, signOut, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
+import { getFirestore, doc, setDoc, updateDoc, getDoc, onSnapshot, serverTimestamp, collection, query, orderBy, limit, addDoc, increment, arrayUnion, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
-/* ========= Firebase ========= */
 const firebaseConfig = {
   apiKey: "AIzaSyBGUDLrMfj-8GAJMemkfcHAGmGucMyKKzA",
   authDomain: "cklass-conteo.firebaseapp.com",
@@ -84,13 +210,77 @@ const firebaseConfig = {
 };
 const app = initializeApp(firebaseConfig);
 const storage = getStorage(app);
-signInAnonymously(getAuth(app)).catch(console.error);
+const auth = getAuth(app);
+const db = getFirestore(app);
 
-/* ========= Helpers ========= */
-const el=id=>document.getElementById(id), setText=(id,t)=>{el(id).textContent=t;}, setHTML=(id,h)=>{el(id).innerHTML=h;};
-const canon=s=>(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase();
+// Persistencia offline Firestore
+try { await enableIndexedDbPersistence(db); } catch (e) { console.warn('Sin persistencia IndexedDB:', e?.message||e); }
 
-/* ========= SheetJS fallback ========= */
+/* ================= Helpers ================= */
+const $ = id => document.getElementById(id);
+const setText = (id, t) => { const n=$(id); if(n) n.textContent = t; };
+const setHTML = (id, h) => { const n=$(id); if(n) n.innerHTML = h; };
+const canon = s => (s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').trim().toUpperCase();
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+const DEVICE_ID = (()=>{try{const k='cc_device_id';let v=localStorage.getItem(k);if(!v){v=crypto.randomUUID();localStorage.setItem(k,v)}return v}catch{return 'unknown'}})();
+
+/* ================= Estado global ================= */
+let CATALOGO = { byBarcode: new Map(), byModelo: new Map(), headers: [] };
+let FOLIO_ID = null;
+let FOLIO_DOC = null;
+let COUNTS_CACHE = new Map(); // modelo -> qty (refresco en tiempo real)
+let USER = null;
+
+/* ================= Red/Offline ================= */
+function updateNetBadge(){
+  setText('offlineBadge', navigator.onLine? 'En línea' : 'Sin conexión');
+  $('#offlineBadge').className = 'ml-auto text-xs px-2 py-1 rounded ' + (navigator.onLine? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700');
+  setText('netStatus', navigator.onLine? 'Conectado' : 'Offline (se sincroniza al volver)');
+}
+window.addEventListener('online', updateNetBadge);
+window.addEventListener('offline', updateNetBadge);
+updateNetBadge();
+
+/* ================= Navegación tabs ================= */
+const TABS = Array.from(document.querySelectorAll('#tabs .tab-btn'));
+const PANES = { importar:$('#tab-importar'), folio:$('#tab-folio'), escanear:$('#tab-escanear'), reporte:$('#tab-reporte'), historial:$('#tab-historial') };
+TABS.forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    const name = btn.dataset.tab;
+    TABS.forEach(b=>b.classList.remove('border-blue-600','text-blue-600'));
+    btn.classList.add('border-blue-600','text-blue-600');
+    Object.values(PANES).forEach(p=>p.classList.add('hidden'));
+    PANES[name]?.classList.remove('hidden');
+  });
+});
+
+/* ================= Auth (no anónimo) ================= */
+$('#btnGoogleSignIn').addEventListener('click', async()=>{
+  try{
+    const provider = new GoogleAuthProvider();
+    await signInWithPopup(auth, provider);
+  }catch(e){ alert('No se pudo iniciar sesión'); console.error(e); }
+});
+$('#btnSignOut').addEventListener('click', ()=> signOut(auth));
+
+onAuthStateChanged(auth, async(user)=>{
+  USER = user;
+  if(user){
+    setHTML('userBox', `<span class='hidden md:inline'>${user.displayName||user.email||'Usuario'}</span>`);
+    $('#btnGoogleSignIn').classList.add('hidden');
+    $('#btnSignOut').classList.remove('hidden');
+    const urlF = new URL(location.href).searchParams.get('folio');
+    if(urlF && !FOLIO_ID) { try{ await setActiveFolio(urlF); }catch{} }
+  } else {
+    setHTML('userBox','Sesión no iniciada');
+    $('#btnGoogleSignIn').classList.remove('hidden');
+    $('#btnSignOut').classList.add('hidden');
+    FOLIO_ID = null; FOLIO_DOC = null; COUNTS_CACHE.clear();
+    setText('folioStatus','—'); setHTML('historyBody',''); setHTML('reportBody',''); setText('totals','');
+  }
+});
+
+/* ================= SheetJS fallback ================= */
 async function ensureXLSX() {
   if (window.XLSX) return;
   const CDN_LIST = [
@@ -99,47 +289,361 @@ async function ensureXLSX() {
     'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.19.3/xlsx.full.min.js'
   ];
   for (const src of CDN_LIST) {
-    try {
-      await new Promise((res,rej)=>{
-        const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s);
-      });
-      if (window.XLSX) return;
-    } catch {}
+    try { await new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=rej; document.head.appendChild(s); }); if (window.XLSX) return; } catch {}
   }
-  throw new Error("No se pudo cargar SheetJS (XLSX).");
+  throw new Error('No se pudo cargar SheetJS (XLSX).');
 }
 
-/* ========= Catálogo ========= */
-const STORAGE_CATALOG_PATH = "static/catalogo-master.xlsx"; // default XLSX
-async function cargarCatalogoStorage(){
+/* ================= Catálogo ================= */
+const STORAGE_CATALOG_PATH = 'static/catalogo-master.xlsx';
+function detectXlsx(url){ try{ return new URL(url).pathname.endsWith('.xlsx'); } catch { return /\.xlsx(\?|$)/.test(url); } }
+
+async function cargarCatalogoStorage(forceBust=false){
   try {
     setText('masterStatus','Descargando catálogo…');
-    const url = await getDownloadURL(ref(storage, STORAGE_CATALOG_PATH));
-    if (url.endsWith(".xlsx") || url.includes(".xlsx?")) {
+    const baseRef = sref(storage, STORAGE_CATALOG_PATH);
+    let url = await getDownloadURL(baseRef);
+    if (forceBust) url += (url.includes('?')?'&':'?')+`v=${Date.now()}`;
+    if (detectXlsx(url)) {
       await ensureXLSX();
-      const resp = await fetch(url,{cache:"no-store"});
+      const resp = await fetch(url,{cache:'no-store'});
+      if(!resp.ok) throw new Error('HTTP '+resp.status);
       const ab = await resp.arrayBuffer();
-      const wb = XLSX.read(ab,{type:"array"});
+      const wb = XLSX.read(ab,{type:'array'});
       const sh = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(sh,{header:1,defval:""});
-      setText("masterStatus",`Catálogo XLSX: ${rows.length-1} registros`);
-      setHTML("catalogFirstRows",rows.slice(1,6).map(r=>r.join(" | ")).join("\n"));
+      const rows = XLSX.utils.sheet_to_json(sh,{header:1,defval:''});
+      parseCatalogRows(rows);
     } else {
-      const resp = await fetch(url,{cache:"no-store"});
+      const resp = await fetch(url,{cache:'no-store'});
+      if(!resp.ok) throw new Error('HTTP '+resp.status);
       const text = await resp.text();
-      const lines = text.split(/\r?\n/).filter(l=>l.trim());
-      setText("masterStatus",`Catálogo CSV: ${lines.length-1} registros`);
-      setHTML("catalogFirstRows",lines.slice(1,6).join("\n"));
+      const rows = text.split(/
+?
+/).map(r=>r.split(/,|;|	/));
+      parseCatalogRows(rows);
     }
+    const total = CATALOGO.byBarcode.size;
+    setText('masterStatus',`Catálogo cargado: ${total} códigos únicos`);
+    setHTML('catalogDiag',diagCatalog());
+    setHTML('catalogFirstRows',exampleRows(5));
   } catch(e) {
     setText('masterStatus','❌ Error: '+(e?.message||e));
     console.error(e);
   }
 }
-el("btnRecargarCloud").addEventListener("click",cargarCatalogoStorage);
-el("btnResumenCat").addEventListener("click",()=>alert(el("masterStatus").textContent));
-el("btnBorrarCat").addEventListener("click",()=>{setText("masterStatus","Caché borrada (solo demo).");});
-el("btnForzarURL").addEventListener("click",()=>cargarCatalogoStorage());
+
+function parseCatalogRows(rows){
+  CATALOGO = { byBarcode:new Map(), byModelo:new Map(), headers:(rows[0]||[]).map(String) };
+  const H = CATALOGO.headers.map(h=>canon(h));
+  const idx = (names)=> names.map(n=>H.indexOf(canon(n))).find(i=>i>=0);
+  const iCode = idx(['CODIGO_BARRA','CODIGO','EAN','UPC','BARCODE']);
+  const iMod  = idx(['MOD','MODELO','SKU']);
+  const iCol  = idx(['COLOR']);
+  const iTalla= idx(['TALLA','SIZE']);
+  let count=0;
+  for(let r=1;r<rows.length;r++){
+    const row = rows[r]||[]; if(row.every(x=>!String(x).trim())) continue;
+    const code = String(row[iCode]||'').trim();
+    const mod  = String(row[iMod]||'').trim();
+    const color= String(row[iCol]||'').trim();
+    const talla= String(row[iTalla]||'').trim();
+    if(!code || !mod) continue;
+    const item = { code, mod, color, talla };
+    CATALOGO.byBarcode.set(code, item);
+    if(!CATALOGO.byModelo.has(mod)) CATALOGO.byModelo.set(mod, { color, talla });
+    count++;
+  }
+}
+
+function diagCatalog(){
+  const mods = CATALOGO.byModelo.size;
+  const codes = CATALOGO.byBarcode.size;
+  return `Modelos: ${mods}
+Códigos de barras: ${codes}
+Encabezados: ${CATALOGO.headers.join(' | ')}`;
+}
+function exampleRows(n=5){
+  const arr=[]; let i=0;
+  for(const [code,item] of CATALOGO.byBarcode){ if(i++>=n) break; arr.push([item.mod,item.color,item.talla,code].join(' | ')); }
+  return arr.join('
+');
+}
+
+$('#btnRecargarCloud')?.addEventListener('click',()=>cargarCatalogoStorage(false));
+$('#btnForzarURL')?.addEventListener('click',()=>cargarCatalogoStorage(true));
+$('#btnResumenCat')?.addEventListener('click',()=>alert($('#masterStatus').textContent+'
+
+'+($('#catalogDiag').textContent||'')));
+$('#btnBorrarCat')?.addEventListener('click',()=>{ CATALOGO={byBarcode:new Map(), byModelo:new Map(), headers:[]}; setText('masterStatus','Catálogo en memoria limpiado.'); setHTML('catalogFirstRows','—'); setHTML('catalogDiag','—'); });
+
+/* ================= Existencias (pegar CSV) ================= */
+function parseExistenciasCSV(text){
+  const lines = text.split(/
+?
+/).map(l=>l.trim()).filter(Boolean);
+  const map = new Map();
+  for(const ln of lines){
+    const [a,b] = ln.split(/,|;|	/);
+    const mod = String(a||'').trim(); if(!mod || /mod(elo)?/i.test(mod)) continue; // skip header
+    const qty = Number(String(b||'0').replace(/[^0-9.-]/g,''))||0;
+    map.set(mod, (map.get(mod)||0) + qty);
+  }
+  return map; // Map<modelo, cantidad>
+}
+
+$('#btnCargarExistencias')?.addEventListener('click', async()=>{
+  if(!USER) return alert('Inicia sesión primero.');
+  if(!FOLIO_ID) return alert('Primero crea o únete a un folio.');
+  const txt = $('#existenciasInput').value||'';
+  const map = parseExistenciasCSV(txt);
+  const obj = Object.fromEntries(map);
+  try{
+    await updateDoc(doc(db,'folios',FOLIO_ID), { existencias: obj, updatedAt: serverTimestamp() });
+    setText('existStatus',`Existencias cargadas: ${map.size} modelos.`);
+  }catch(e){
+    console.error(e); alert('Error guardando existencias. Verifica permisos del folio.');
+  }
+});
+$('#btnLimpiarExistencias')?.addEventListener('click',()=>{ $('#existenciasInput').value=''; setText('existStatus','—'); });
+
+/* ================= Folio (con membresías) ================= */
+async function crearFolio(){
+  if(!USER) return alert('Inicia sesión primero.');
+  const name = ($('#folioName').value||'').trim() || 'Cíclico';
+  const ref = doc(collection(db,'folios'));
+  const data = { name, createdAt: serverTimestamp(), updatedAt: serverTimestamp(), state:'open', catalogPath: STORAGE_CATALOG_PATH, ownerUid: USER.uid, members: [USER.uid] };
+  await setDoc(ref, data);
+  await setActiveFolio(ref.id);
+}
+async function setActiveFolio(id){
+  if(!USER) return alert('Inicia sesión primero.');
+  FOLIO_ID = id; localStorage.setItem('folio_id',id);
+  const snap = await getDoc(doc(db,'folios',id));
+  if(!snap.exists()){ setText('folioStatus','Folio no encontrado'); return; }
+  FOLIO_DOC = snap.data();
+  const isMember = (FOLIO_DOC.members||[]).includes(USER.uid) || FOLIO_DOC.ownerUid===USER.uid;
+  setText('folioStatus', isMember? `Folio activo: ${id} — ${FOLIO_DOC.name||''}` : `Folio ${id} — No eres miembro (pulsa Unirse)`);
+  $('#joinFolioId').value = id;
+  const url = new URL(location.href); url.searchParams.set('folio', id); history.replaceState(null,'',url.toString());
+  subscribeCounts();
+  subscribeScans();
+  watchFolio();
+}
+async function unirseFolio(){
+  if(!USER) return alert('Inicia sesión primero.');
+  const id = ($('#joinFolioId').value||'').trim(); if(!id) return alert('Ingresa un ID');
+  const ref = doc(db,'folios',id);
+  const snap = await getDoc(ref);
+  if(!snap.exists()) return alert('Folio no encontrado');
+  await updateDoc(ref, { members: arrayUnion(USER.uid), updatedAt: serverTimestamp() });
+  await setActiveFolio(id);
+}
+$('#btnCrearFolio')?.addEventListener('click',crearFolio);
+$('#btnUnirseFolio')?.addEventListener('click',unirseFolio);
+$('#btnCerrarFolio')?.addEventListener('click',async()=>{
+  if(!USER) return alert('Inicia sesión primero.');
+  if(!FOLIO_ID) return; await updateDoc(doc(db,'folios',FOLIO_ID),{state:'closed', updatedAt: serverTimestamp()}); alert('Folio cerrado.');
+});
+$('#btnCopiarLink')?.addEventListener('click',()=>{
+  if(!FOLIO_ID) return alert('Sin folio activo');
+  const url = new URL(location.href); url.searchParams.set('folio', FOLIO_ID);
+  navigator.clipboard.writeText(url.toString()); alert('Enlace copiado.');
+});
+
+// Autounirse por ?folio o localStorage al iniciar sesión (onAuthStateChanged maneja)
+
+/* ================= Realtime: counts & scans ================= */
+let unsubCounts = null, unsubScans = null, unsubFolio = null;
+function subscribeCounts(){
+  unsubCounts?.();
+  COUNTS_CACHE.clear();
+  if(!FOLIO_ID) return;
+  unsubCounts = onSnapshot(collection(db,'folios',FOLIO_ID,'counts'),(snap)=>{
+    snap.docChanges().forEach(ch=>{
+      COUNTS_CACHE.set(ch.doc.id, (ch.doc.data()?.qty)||0);
+    });
+    renderTotals();
+  });
+}
+function subscribeScans(){
+  unsubScans?.();
+  if(!FOLIO_ID) return;
+  const qy = query(collection(db,'folios',FOLIO_ID,'scans'), orderBy('ts','desc'), limit(500));
+  unsubScans = onSnapshot(qy,(snap)=>{
+    const rows=[];
+    snap.forEach(d=>{
+      const x=d.data();
+      const dt = x.ts?.toDate? x.ts.toDate(): (x.ts||new Date());
+      rows.push(`<tr><td>${fmtDate(dt)}</td><td>${esc(x.code)}</td><td>${esc(x.mod||'')}</td><td>${esc(x.color||'')}</td><td>${esc(x.talla||'')}</td><td>${esc(x.user||'')}</td><td>${esc(x.deviceId||'')}</td></tr>`);
+    });
+    setHTML('historyBody', rows.join(''));
+  });
+}
+function watchFolio(){
+  unsubFolio?.();
+  if(!FOLIO_ID) return;
+  unsubFolio = onSnapshot(doc(db,'folios',FOLIO_ID),(snap)=>{
+    if(!snap.exists()) return; FOLIO_DOC = snap.data(); renderTotals(); renderReport();
+  });
+}
+
+function fmtDate(d){ const pad=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; }
+function esc(s){ return String(s).replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"})[m]); }
+
+/* ================= Escáner ================= */
+let scanning = false;
+$('#btnStartScan')?.addEventListener('click',startScanner);
+$('#btnStopScan')?.addEventListener('click',stopScanner);
+$('#manualCode')?.addEventListener('keydown',e=>{ if(e.key==='Enter'){ const v=e.currentTarget.value.trim(); if(v) handleBarcode(v); e.currentTarget.value=''; }});
+$('#btnSimular')?.addEventListener('click',()=>stressSim(500));
+
+async function startScanner(){
+  if(!USER) return alert('Inicia sesión primero.');
+  if(!FOLIO_ID) return alert('Sin folio activo');
+  if(scanning) return; if(!window.Quagga){ alert('Quagga2 no disponible'); return; }
+  scanning = true; setText('scanStatus','Iniciando cámara…');
+  try{
+    await Quagga.init({
+      inputStream:{ name:'Live', type:'LiveStream', target: document.querySelector('#interactive'), constraints:{ facingMode:'environment' } },
+      decoder:{ readers:[ 'ean_reader','ean_8_reader','upc_reader','upc_e_reader','code_128_reader' ] },
+      locator:{ patchSize:'medium', halfSample:true },
+      locate:true
+    });
+    Quagga.start(); setText('scanStatus','Escaneando…');
+    Quagga.onDetected(res=>{
+      const code = (res?.codeResult?.code||'').trim();
+      if(code){ handleBarcode(code); }
+    });
+  }catch(e){ console.error(e); alert('No se pudo iniciar el escáner'); scanning=false; }
+}
+function stopScanner(){ try{ Quagga.stop(); }catch{} scanning=false; setText('scanStatus','Detenido'); }
+
+/* ================= Lógica de escaneo ================= */
+async function handleBarcode(code){
+  if(!USER) return alert('Inicia sesión primero.');
+  if(!FOLIO_ID) return alert('No hay folio activo');
+  if(CATALOGO.byBarcode.size===0) return alert('Catálogo no cargado');
+  const item = CATALOGO.byBarcode.get(code);
+  if(!item){ setText('lastItem',`Código no encontrado: ${esc(code)}`); beep(false); return; }
+  await registrarScan(item, code);
+  setText('lastItem',`✔ ${esc(item.mod)} — ${esc(item.color||'')} ${esc(item.talla||'')} (${esc(code)})`);
+  beep(true);
+}
+
+async function registrarScan(item, code){
+  const countsRef = doc(db,'folios',FOLIO_ID,'counts', item.mod);
+  const scansCol = collection(db,'folios',FOLIO_ID,'scans');
+  await Promise.all([
+    setDoc(countsRef, { qty: increment(1) }, { merge:true }),
+    addDoc(scansCol, { code, mod:item.mod, color:item.color||'', talla:item.talla||'', ts: serverTimestamp(), deviceId: DEVICE_ID, user: (USER?.email||USER?.uid||'') })
+  ]).catch(e=>{ console.error(e); alert('Error registrando escaneo (revisar permisos/estado folio).'); });
+}
+
+function renderTotals(){
+  if(!FOLIO_DOC) return;
+  const ex = FOLIO_DOC.existencias || {}; // {modelo:qty}
+  let totalEsc=0, totalTheo=0, dif=0;
+  for(const [mod,qty] of COUNTS_CACHE){ totalEsc += qty; dif += (qty - (ex[mod]||0)); }
+  for(const v of Object.values(ex)) totalTheo += (v||0);
+  setText('totals', `Escaneado: ${totalEsc} | Teórico: ${totalTheo} | Diferencia: ${dif}`);
+}
+
+function beep(ok=true){
+  try{
+    const ctx=new (window.AudioContext||window.webkitAudioContext)();
+    const o=ctx.createOscillator(); const g=ctx.createGain(); o.connect(g); g.connect(ctx.destination);
+    o.type='sine'; o.frequency.value = ok? 880: 220; g.gain.value=.05; o.start(); setTimeout(()=>{o.stop(); ctx.close()},120);
+  }catch{}
+}
+
+/* ================= Reporte ================= */
+$('#btnRefrescarReporte')?.addEventListener('click',renderReport);
+$('#btnExportarCSV')?.addEventListener('click',()=>{
+  const rows = buildReportRows();
+  const csv = ['Modelo,Teorico,Escaneado,Diferencia'].concat(rows.map(r=>[r.mod,r.theo,r.scan,r.diff].join(','))).join('
+');
+  const blob = new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`reporte_${FOLIO_ID||'sin_folio'}.csv`; a.click(); URL.revokeObjectURL(a.href);
+});
+$('#btnImprimir')?.addEventListener('click',()=>window.print());
+
+function buildReportRows(){
+  const ex = FOLIO_DOC?.existencias || {};
+  const set = new Set([...Object.keys(ex), ...COUNTS_CACHE.keys()]);
+  const rows = [];
+  for(const mod of set){
+    const theo = Number(ex[mod]||0);
+    const scan = Number(COUNTS_CACHE.get(mod)||0);
+    rows.push({ mod, theo, scan, diff: scan-theo });
+  }
+  rows.sort((a,b)=> a.mod.localeCompare(b.mod));
+  return rows;
+}
+function renderReport(){
+  const rows = buildReportRows();
+  const html = rows.map(r=>`<tr>
+    <td>${esc(r.mod)}</td>
+    <td class="text-right">${r.theo}</td>
+    <td class="text-right">${r.scan}</td>
+    <td class="text-right ${r.diff===0?'':'font-semibold'} ${r.diff>0?'text-emerald-600':r.diff<0?'text-red-600':''}">${r.diff}</td>
+  </tr>`).join('');
+  setHTML('reportBody', html||'<tr><td colspan="4" class="text-center text-gray-400">Sin datos</td></tr>');
+}
+
+/* ================= Prueba de estrés ================= */
+async function stressSim(n=500){
+  if(!USER) return alert('Inicia sesión primero.');
+  if(!FOLIO_ID) return alert('Sin folio activo');
+  if(CATALOGO.byBarcode.size===0) return alert('Carga el catálogo primero');
+  const codes = Array.from(CATALOGO.byBarcode.keys());
+  setText('scanStatus', `Simulando ${n} lecturas…`);
+  for(let i=0;i<n;i++){
+    const code = codes[i % codes.length];
+    await handleBarcode(code);
+    if(i % 25 === 0) await sleep(5); // cede UI
+  }
+  setText('scanStatus', `Simulación terminada (${n}).`);
+}
+
+/* ================= Accesos/Sync ================= */
+// Cargar catálogo al entrar
+cargarCatalogoStorage(false);
+
+// Si había folio activo se restablece tras login (onAuthStateChanged)
+
 </script>
+
+<!--
+path: /firestore.rules (copia y pega en Firebase Console > Firestore > Rules)
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() { return request.auth != null; }
+    function isOwner() { return isSignedIn() && request.auth.uid == resource.data.ownerUid; }
+    function isMember() { return isSignedIn() && (
+      isOwner() || (resource.data.members is list && resource.data.members.hasAny([request.auth.uid]))
+    ); }
+
+    match /folios/{folioId} {
+      allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow read: if isMember();
+      allow update: if isOwner(); // editar existencias/estado solo dueño
+
+      match /counts/{mod} {
+        allow read: if isMember();
+        allow write: if isMember() && get(/databases/$(database)/documents/folios/$(folioId)).data.state == 'open';
+      }
+
+      match /scans/{scanId} {
+        allow read: if isMember();
+        allow create: if isMember();
+        allow delete: if isOwner();
+      }
+    }
+  }
+}
+-->
+
 </body>
 </html>
