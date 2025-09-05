@@ -12,7 +12,7 @@
   <script>window.addEventListener('error',e=>console.error(e?.error||e));</script>
   <!-- Quagga2 (escáner) -->
   <script src="https://unpkg.com/@ericblade/quagga2/dist/quagga.min.js"></script>
-  <!-- SheetJS primario -->
+  <!-- SheetJS -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js"></script>
   <style>
     .btn{padding:.5rem .75rem;border-radius:.5rem;font-size:.875rem}
@@ -21,8 +21,6 @@
     .cam{height:45vh;max-height:420px;background:#000;border-radius:1rem;overflow:hidden;position:relative}
     video{width:100%;height:100%;object-fit:cover}
     #overlay{position:absolute;inset:0;pointer-events:none}
-    pre{background:#f8fafc;border-radius:.75rem;padding:.5rem;overflow:auto}
-    code{background:#f1f5f9;border-radius:.375rem;padding:.1rem .25rem}
     @media print {.no-print{display:none!important}}
   </style>
 </head>
@@ -196,6 +194,7 @@
 </div>
 
 <script type="module">
+(async()=>{
 /* ================= Firebase ================= */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
 import { getStorage, ref as sref, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-storage.js";
@@ -213,14 +212,13 @@ const storage = getStorage(app);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// Persistencia offline Firestore
 try { await enableIndexedDbPersistence(db); } catch (e) { console.warn('Sin persistencia IndexedDB:', e?.message||e); }
 
 /* ================= Helpers ================= */
 const $ = id => document.getElementById(id);
 const setText = (id, t) => { const n=$(id); if(n) n.textContent = t; };
 const setHTML = (id, h) => { const n=$(id); if(n) n.innerHTML = h; };
-const canon = s => (s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').trim().toUpperCase();
+const canon = s => (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase();
 const sleep = ms => new Promise(r=>setTimeout(r,ms));
 const DEVICE_ID = (()=>{try{const k='cc_device_id';let v=localStorage.getItem(k);if(!v){v=crypto.randomUUID();localStorage.setItem(k,v)}return v}catch{return 'unknown'}})();
 
@@ -228,20 +226,22 @@ const DEVICE_ID = (()=>{try{const k='cc_device_id';let v=localStorage.getItem(k)
 let CATALOGO = { byBarcode: new Map(), byModelo: new Map(), headers: [] };
 let FOLIO_ID = null;
 let FOLIO_DOC = null;
-let COUNTS_CACHE = new Map(); // modelo -> qty (refresco en tiempo real)
+let COUNTS_CACHE = new Map();
 let USER = null;
 
 /* ================= Red/Offline ================= */
 function updateNetBadge(){
-  setText('offlineBadge', navigator.onLine? 'En línea' : 'Sin conexión');
-  $('#offlineBadge').className = 'ml-auto text-xs px-2 py-1 rounded ' + (navigator.onLine? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700');
-  setText('netStatus', navigator.onLine? 'Conectado' : 'Offline (se sincroniza al volver)');
+  const on = navigator.onLine;
+  const b = $('#offlineBadge'); if(!b) return;
+  b.textContent = on? 'En línea' : 'Sin conexión';
+  b.className = 'ml-auto text-xs px-2 py-1 rounded ' + (on? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700');
+  setText('netStatus', on? 'Conectado' : 'Offline (se sincroniza al volver)');
 }
 window.addEventListener('online', updateNetBadge);
 window.addEventListener('offline', updateNetBadge);
 updateNetBadge();
 
-/* ================= Navegación tabs ================= */
+/* ================= Tabs ================= */
 const TABS = Array.from(document.querySelectorAll('#tabs .tab-btn'));
 const PANES = { importar:$('#tab-importar'), folio:$('#tab-folio'), escanear:$('#tab-escanear'), reporte:$('#tab-reporte'), historial:$('#tab-historial') };
 TABS.forEach(btn=>{
@@ -254,19 +254,17 @@ TABS.forEach(btn=>{
   });
 });
 
-/* ================= Auth (no anónimo) ================= */
+/* ================= Auth (Google) ================= */
 $('#btnGoogleSignIn').addEventListener('click', async()=>{
-  try{
-    const provider = new GoogleAuthProvider();
-    await signInWithPopup(auth, provider);
-  }catch(e){ alert('No se pudo iniciar sesión'); console.error(e); }
+  try{ await signInWithPopup(auth, new GoogleAuthProvider()); }
+  catch(e){ console.error(e); alert('No se pudo iniciar sesión'); }
 });
 $('#btnSignOut').addEventListener('click', ()=> signOut(auth));
 
 onAuthStateChanged(auth, async(user)=>{
-  USER = user;
-  if(user){
-    setHTML('userBox', `<span class='hidden md:inline'>${user.displayName||user.email||'Usuario'}</span>`);
+  USER = user || null;
+  if(USER){
+    setHTML('userBox', `<span class='hidden md:inline'>${USER.displayName||USER.email||'Usuario'}</span>`);
     $('#btnGoogleSignIn').classList.add('hidden');
     $('#btnSignOut').classList.remove('hidden');
     const urlF = new URL(location.href).searchParams.get('folio');
@@ -280,7 +278,7 @@ onAuthStateChanged(auth, async(user)=>{
   }
 });
 
-/* ================= SheetJS fallback ================= */
+/* ================= SheetJS fallback (si falla CDN) ================= */
 async function ensureXLSX() {
   if (window.XLSX) return;
   const CDN_LIST = [
@@ -317,13 +315,11 @@ async function cargarCatalogoStorage(forceBust=false){
       const resp = await fetch(url,{cache:'no-store'});
       if(!resp.ok) throw new Error('HTTP '+resp.status);
       const text = await resp.text();
-      const rows = text.split(/
-?
-/).map(r=>r.split(/,|;|	/));
+      const rows = text.split(/\r?\n/).map(r=>r.split(/,|;|\t/));
       parseCatalogRows(rows);
     }
     const total = CATALOGO.byBarcode.size;
-    setText('masterStatus',`Catálogo cargado: ${total} códigos únicos`);
+    setText('masterStatus',`Catálogo cargado: ${total} códigos mapeados`);
     setHTML('catalogDiag',diagCatalog());
     setHTML('catalogFirstRows',exampleRows(5));
   } catch(e) {
@@ -340,57 +336,52 @@ function parseCatalogRows(rows){
   const iMod  = idx(['MOD','MODELO','SKU']);
   const iCol  = idx(['COLOR']);
   const iTalla= idx(['TALLA','SIZE']);
-  let count=0;
   for(let r=1;r<rows.length;r++){
     const row = rows[r]||[]; if(row.every(x=>!String(x).trim())) continue;
-    const code = String(row[iCode]||'').trim();
+    const raw = String(row[iCode]||'').trim();
     const mod  = String(row[iMod]||'').trim();
     const color= String(row[iCol]||'').trim();
     const talla= String(row[iTalla]||'').trim();
-    if(!code || !mod) continue;
-    const item = { code, mod, color, talla };
-    CATALOGO.byBarcode.set(code, item);
+    if(!raw || !mod) continue;
+    const item = { code: raw, mod, color, talla };
+    const norm = normalizeBarcode(raw);
+    const keys = new Set([raw]);
+    if(norm.ean13){ keys.add(norm.ean13); keys.add(norm.ean13.replace(/^0/,'')); }
+    if(/^\d{12}$/.test(raw)) keys.add('0'+raw);
+    if(/^\d{13}$/.test(raw) && raw.startsWith('0')) keys.add(raw.slice(1));
+    keys.forEach(k=> CATALOGO.byBarcode.set(k, item));
     if(!CATALOGO.byModelo.has(mod)) CATALOGO.byModelo.set(mod, { color, talla });
-    count++;
   }
 }
 
 function diagCatalog(){
   const mods = CATALOGO.byModelo.size;
   const codes = CATALOGO.byBarcode.size;
-  return `Modelos: ${mods}
-Códigos de barras: ${codes}
-Encabezados: ${CATALOGO.headers.join(' | ')}`;
+  return `Modelos: ${mods}\nClaves de búsqueda: ${codes}\nEncabezados: ${CATALOGO.headers.join(' | ')}`;
 }
 function exampleRows(n=5){
   const arr=[]; let i=0;
   for(const [code,item] of CATALOGO.byBarcode){ if(i++>=n) break; arr.push([item.mod,item.color,item.talla,code].join(' | ')); }
-  return arr.join('
-');
+  return arr.join('\n');
 }
 
 $('#btnRecargarCloud')?.addEventListener('click',()=>cargarCatalogoStorage(false));
 $('#btnForzarURL')?.addEventListener('click',()=>cargarCatalogoStorage(true));
-$('#btnResumenCat')?.addEventListener('click',()=>alert($('#masterStatus').textContent+'
-
-'+($('#catalogDiag').textContent||'')));
+$('#btnResumenCat')?.addEventListener('click',()=>alert($('#masterStatus').textContent+'\n\n'+($('#catalogDiag').textContent||'')));
 $('#btnBorrarCat')?.addEventListener('click',()=>{ CATALOGO={byBarcode:new Map(), byModelo:new Map(), headers:[]}; setText('masterStatus','Catálogo en memoria limpiado.'); setHTML('catalogFirstRows','—'); setHTML('catalogDiag','—'); });
 
-/* ================= Existencias (pegar CSV) ================= */
+/* ================= Existencias ================= */
 function parseExistenciasCSV(text){
-  const lines = text.split(/
-?
-/).map(l=>l.trim()).filter(Boolean);
+  const lines = text.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
   const map = new Map();
   for(const ln of lines){
-    const [a,b] = ln.split(/,|;|	/);
-    const mod = String(a||'').trim(); if(!mod || /mod(elo)?/i.test(mod)) continue; // skip header
+    const [a,b] = ln.split(/,|;|\t/);
+    const mod = String(a||'').trim(); if(!mod || /mod(elo)?/i.test(mod)) continue;
     const qty = Number(String(b||'0').replace(/[^0-9.-]/g,''))||0;
     map.set(mod, (map.get(mod)||0) + qty);
   }
-  return map; // Map<modelo, cantidad>
+  return map;
 }
-
 $('#btnCargarExistencias')?.addEventListener('click', async()=>{
   if(!USER) return alert('Inicia sesión primero.');
   if(!FOLIO_ID) return alert('Primero crea o únete a un folio.');
@@ -400,13 +391,11 @@ $('#btnCargarExistencias')?.addEventListener('click', async()=>{
   try{
     await updateDoc(doc(db,'folios',FOLIO_ID), { existencias: obj, updatedAt: serverTimestamp() });
     setText('existStatus',`Existencias cargadas: ${map.size} modelos.`);
-  }catch(e){
-    console.error(e); alert('Error guardando existencias. Verifica permisos del folio.');
-  }
+  }catch(e){ console.error(e); alert('Error guardando existencias. Verifica permisos del folio.'); }
 });
 $('#btnLimpiarExistencias')?.addEventListener('click',()=>{ $('#existenciasInput').value=''; setText('existStatus','—'); });
 
-/* ================= Folio (con membresías) ================= */
+/* ================= Folio (membresías) ================= */
 async function crearFolio(){
   if(!USER) return alert('Inicia sesión primero.');
   const name = ($('#folioName').value||'').trim() || 'Cíclico';
@@ -450,9 +439,7 @@ $('#btnCopiarLink')?.addEventListener('click',()=>{
   navigator.clipboard.writeText(url.toString()); alert('Enlace copiado.');
 });
 
-// Autounirse por ?folio o localStorage al iniciar sesión (onAuthStateChanged maneja)
-
-/* ================= Realtime: counts & scans ================= */
+/* ================= Realtime ================= */
 let unsubCounts = null, unsubScans = null, unsubFolio = null;
 function subscribeCounts(){
   unsubCounts?.();
@@ -487,8 +474,64 @@ function watchFolio(){
   });
 }
 
-function fmtDate(d){ const pad=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; }
+function fmtDate(d){ const p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; }
 function esc(s){ return String(s).replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"})[m]); }
+
+/* ================= GS1/EAN helpers ================= */
+function computeEAN13CheckDigit(d12){
+  const digits = d12.split('').map(Number); let sum=0;
+  for(let i=0;i<12;i++){ sum += digits[i] * (i%2===0?1:3); }
+  const cd = (10 - (sum % 10)) % 10; return String(cd);
+}
+function toEAN13FromGTIN14(gtin14){
+  if(!/^\d{14}$/.test(gtin14)) return null;
+  const base12 = gtin14.slice(1,13); return base12 + computeEAN13CheckDigit(base12);
+}
+function tryParseGS1(raw){
+  const s = String(raw).trim();
+  const GS = String.fromCharCode(29);
+  const normalized = s.replace(/\s+/g,'');
+  const parts = [];
+  const reParen = /\((\d{2,4})\)([^()]+)/g; let m;
+  while((m = reParen.exec(normalized))){ parts.push({ ai:m[1], val:m[2] }); }
+  if(parts.length===0 && normalized.includes(GS)){
+    let rest = normalized;
+    while(rest.length>0){
+      const ai = rest.slice(0,2);
+      if(!/\d{2}/.test(ai)) break;
+      rest = rest.slice(2);
+      const FIXED = {'01':14,'17':6,'15':6,'11':6,'13':6,'12':6};
+      const lenFixed = FIXED[ai]||0;
+      if(lenFixed>0){ parts.push({ai, val: rest.slice(0,lenFixed)}); rest = rest.slice(lenFixed); if(rest[0]===GS) rest = rest.slice(1); }
+      else { const idx = rest.indexOf(GS); const val = idx>=0? rest.slice(0,idx): rest; parts.push({ai, val}); rest = idx>=0? rest.slice(idx+1):''; }
+    }
+  }
+  if(parts.length===0) return null;
+  const aiMap = Object.fromEntries(parts.map(p=>[p.ai,p.val]));
+  if(aiMap['01']){
+    const gtin14 = aiMap['01'].slice(0,14);
+    const ean13 = toEAN13FromGTIN14(gtin14);
+    return { type:'GS1', raw:s, gtin14, ean13, ai: aiMap };
+  }
+  return { type:'GS1', raw:s, ai: aiMap };
+}
+function normalizeBarcode(input){
+  const raw = String(input).trim();
+  const maybeGS1 = raw.includes('(') || raw.includes(String.fromCharCode(29)) || raw.startsWith('01');
+  if(maybeGS1){ const parsed = tryParseGS1(raw); if(parsed?.ean13) return { type:'GS1', ean13: parsed.ean13, meta: parsed }; }
+  if(/^\d{13}$/.test(raw)){
+    const cd = computeEAN13CheckDigit(raw.slice(0,12));
+    if(raw[12]!==cd){ const fixed = raw.slice(0,12)+cd; return { type:'EAN13', ean13: fixed, corrected:true }; }
+    return { type:'EAN13', ean13: raw };
+  }
+  if(/^\d{12}$/.test(raw)){
+    return { type:'UPCA', ean13: '0'+raw };
+  }
+  if(/^\d{14}$/.test(raw)){
+    const ean13 = toEAN13FromGTIN14(raw); if(ean13) return { type:'GTIN14', ean13 };
+  }
+  return { type:'RAW', raw };
+}
 
 /* ================= Escáner ================= */
 let scanning = false;
@@ -518,15 +561,21 @@ async function startScanner(){
 }
 function stopScanner(){ try{ Quagga.stop(); }catch{} scanning=false; setText('scanStatus','Detenido'); }
 
-/* ================= Lógica de escaneo ================= */
 async function handleBarcode(code){
   if(!USER) return alert('Inicia sesión primero.');
   if(!FOLIO_ID) return alert('No hay folio activo');
   if(CATALOGO.byBarcode.size===0) return alert('Catálogo no cargado');
-  const item = CATALOGO.byBarcode.get(code);
-  if(!item){ setText('lastItem',`Código no encontrado: ${esc(code)}`); beep(false); return; }
-  await registrarScan(item, code);
-  setText('lastItem',`✔ ${esc(item.mod)} — ${esc(item.color||'')} ${esc(item.talla||'')} (${esc(code)})`);
+  const norm = normalizeBarcode(code);
+  let item = null;
+  if(norm.ean13){
+    item = CATALOGO.byBarcode.get(norm.ean13)
+        || CATALOGO.byBarcode.get(norm.ean13.replace(/^0/,''));
+  }
+  if(!item){ item = CATALOGO.byBarcode.get(String(code).trim()); }
+  if(!item){ setText('lastItem',`Código no encontrado: ${String(code)}`); beep(false); return; }
+  await registrarScan(item, String(code).trim());
+  const gs1Info = norm?.meta?.ai ? ` [GS1 ${(norm.meta.ai['17']? 'EXP '+norm.meta.ai['17']+' ':'')}${norm.meta.ai['10']? 'LOT '+norm.meta.ai['10']+' ':''}${norm.meta.ai['21']? 'SER '+norm.meta.ai['21']:''}]` : '';
+  setText('lastItem',`✔ ${esc(item.mod)} — ${esc(item.color||'')} ${esc(item.talla||'')} (${esc(norm.ean13||code)})${gs1Info}`);
   beep(true);
 }
 
@@ -541,7 +590,7 @@ async function registrarScan(item, code){
 
 function renderTotals(){
   if(!FOLIO_DOC) return;
-  const ex = FOLIO_DOC.existencias || {}; // {modelo:qty}
+  const ex = FOLIO_DOC.existencias || {};
   let totalEsc=0, totalTheo=0, dif=0;
   for(const [mod,qty] of COUNTS_CACHE){ totalEsc += qty; dif += (qty - (ex[mod]||0)); }
   for(const v of Object.values(ex)) totalTheo += (v||0);
@@ -560,8 +609,7 @@ function beep(ok=true){
 $('#btnRefrescarReporte')?.addEventListener('click',renderReport);
 $('#btnExportarCSV')?.addEventListener('click',()=>{
   const rows = buildReportRows();
-  const csv = ['Modelo,Teorico,Escaneado,Diferencia'].concat(rows.map(r=>[r.mod,r.theo,r.scan,r.diff].join(','))).join('
-');
+  const csv = ['Modelo,Teorico,Escaneado,Diferencia'].concat(rows.map(r=>[r.mod,r.theo,r.scan,r.diff].join(','))).join('\n');
   const blob = new Blob([csv],{type:'text/csv;charset=utf-8;'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`reporte_${FOLIO_ID||'sin_folio'}.csv`; a.click(); URL.revokeObjectURL(a.href);
 });
@@ -590,7 +638,7 @@ function renderReport(){
   setHTML('reportBody', html||'<tr><td colspan="4" class="text-center text-gray-400">Sin datos</td></tr>');
 }
 
-/* ================= Prueba de estrés ================= */
+/* ================= Stress test ================= */
 async function stressSim(n=500){
   if(!USER) return alert('Inicia sesión primero.');
   if(!FOLIO_ID) return alert('Sin folio activo');
@@ -600,50 +648,14 @@ async function stressSim(n=500){
   for(let i=0;i<n;i++){
     const code = codes[i % codes.length];
     await handleBarcode(code);
-    if(i % 25 === 0) await sleep(5); // cede UI
+    if(i % 25 === 0) await sleep(5);
   }
   setText('scanStatus', `Simulación terminada (${n}).`);
 }
 
-/* ================= Accesos/Sync ================= */
-// Cargar catálogo al entrar
+/* ================= Inicio ================= */
 cargarCatalogoStorage(false);
-
-// Si había folio activo se restablece tras login (onAuthStateChanged)
-
+})();
 </script>
-
-<!--
-path: /firestore.rules (copia y pega en Firebase Console > Firestore > Rules)
-
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    function isSignedIn() { return request.auth != null; }
-    function isOwner() { return isSignedIn() && request.auth.uid == resource.data.ownerUid; }
-    function isMember() { return isSignedIn() && (
-      isOwner() || (resource.data.members is list && resource.data.members.hasAny([request.auth.uid]))
-    ); }
-
-    match /folios/{folioId} {
-      allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
-      allow read: if isMember();
-      allow update: if isOwner(); // editar existencias/estado solo dueño
-
-      match /counts/{mod} {
-        allow read: if isMember();
-        allow write: if isMember() && get(/databases/$(database)/documents/folios/$(folioId)).data.state == 'open';
-      }
-
-      match /scans/{scanId} {
-        allow read: if isMember();
-        allow create: if isMember();
-        allow delete: if isOwner();
-      }
-    }
-  }
-}
--->
-
 </body>
 </html>
