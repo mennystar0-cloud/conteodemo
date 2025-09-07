@@ -66,12 +66,15 @@
 
 <script>
 (function(){
-  // Firebase init (compat)
+  // === Firebase init (compat) ===
   const firebaseConfig = {
-    apiKey: "TU_API_KEY",
-    authDomain: "cklass-conteo.firebaseapp.com",
-    projectId: "cklass-conteo",
-    storageBucket: "cklass-conteo.appspot.com",
+    apiKey: "AIzaSyBe23iKn2bl0YMxsXUiTN5SkUrD9Vhvfo",
+    authDomain: "cklass-conteo-ec4f5.firebaseapp.com",
+    projectId: "cklass-conteo-ec4f5",
+    storageBucket: "cklass-conteo-ec4f5.appspot.com",
+    messagingSenderId: "148726861241",
+    appId: "1:148726861241:web:592f683e941d13d2829e68",
+    measurementId: "G-EMVHW8SQMN"
   };
   firebase.initializeApp(firebaseConfig);
   const auth = firebase.auth();
@@ -113,7 +116,7 @@
     if(user){ cargarCatalogo(); }
   });
 
-  // Catalog
+  // Catalog desde Storage/static/catalogo-master.xlsx
   async function cargarCatalogo(){
     try{
       const ref=storage.ref('static/catalogo-master.xlsx');
@@ -127,7 +130,7 @@
     }
   }
 
-  // Escaneo básico (ejemplo)
+  // Escaneo básico
   let stream;
   $('btnRefreshCam').addEventListener('click',async()=>{
     const devices=await navigator.mediaDevices.enumerateDevices();
@@ -148,7 +151,7 @@
     track.applyConstraints({advanced:[{torch:true}]}).catch(()=>alert('No soportado'));
   });
 
-  // Admin botones (simples)
+  // Admin botones
   $('btnZip').addEventListener('click',()=>alert('Descarga ZIP simulada'));
   $('btnClose').addEventListener('click',()=>alert('Folio cerrado'));
 })();
