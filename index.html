@@ -3,65 +3,72 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Conteo Cíclico CKLASS</title>
-  <meta name="theme-color" content="#1877F2" />
   <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="icon" href="icons/icon-192.png" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/@ericblade/quagga2/dist/quagga.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js"></script>
+  <!-- Firebase compat -->
+  <script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-storage-compat.js"></script>
   <style>
     .btn{padding:.5rem .75rem;border-radius:.5rem;font-size:.875rem}
-    .table th,.table td{border-bottom:1px solid #e5e7eb;padding:.25rem .5rem}
-    .card{background:#fff;border-radius:1rem;box-shadow:0 1px 3px rgba(0,0,0,.08);padding:1rem}
-    .cam{height:45vh;max-height:420px;background:#000;border-radius:1rem;overflow:hidden;position:relative}
-    video{width:100%;height:100%;object-fit:cover}
-    #overlay{position:absolute;inset:0;pointer-events:none}
-    @media print {.no-print{display:none!important}}
+    .tab-btn{padding:.5rem .75rem;border-bottom:2px solid transparent}
+    .card{background:#fff;padding:1rem;border-radius:.75rem;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+    .cam{height:45vh;max-height:400px;background:#000;overflow:hidden;border-radius:1rem}
   </style>
 </head>
 <body class="bg-gray-50 text-gray-900">
-<div class="max-w-7xl mx-auto p-4">
-  <header class="mb-4 no-print flex items-center justify-between gap-4">
+<div class="max-w-6xl mx-auto p-4">
+  <header class="flex items-center justify-between mb-4">
     <div>
-      <h1 class="text-2xl font-bold">Conteo Cíclico — Catálogo + Existencias + Escaneo</h1>
-      <p class="text-sm text-gray-600">Configuración en PC, escaneo simultáneo en móviles por <b>folio</b> con Firestore.</p>
+      <h1 class="text-xl font-bold">Conteo Cíclico — Catálogo + Existencias + Escaneo</h1>
+      <p class="text-sm text-gray-600">Configuración en PC, escaneo en móviles con folio.</p>
     </div>
-    <div class="flex items-center gap-2">
-      <div id="netStatus" class="text-xs text-gray-500">—</div>
-      <div id="userBox" class="text-xs text-gray-600"></div>
-      <button id="btnGoogleSignIn" class="btn bg-emerald-600 text-white">Iniciar sesión</button>
-      <button id="btnSignOut" class="btn bg-gray-200 hidden">Salir</button>
+    <div>
+      <button id="btnLogin" class="btn bg-emerald-600 text-white">Iniciar sesión</button>
+      <button id="btnLogout" class="btn bg-gray-200 hidden">Salir</button>
     </div>
   </header>
 
-  <!-- Pestañas -->
-  <nav id="tabs" class="flex gap-2 no-print">
-    <button data-tab="importar" class="btn bg-blue-600 text-white">Importar</button>
-    <button data-tab="folio" class="btn bg-gray-200">Folio</button>
-    <button data-tab="escanear" class="btn bg-gray-200">Escanear</button>
-    <button data-tab="reporte" class="btn bg-gray-200">Reporte</button>
-    <button data-tab="historial" class="btn bg-gray-200">Historial</button>
+  <!-- Tabs -->
+  <nav class="flex gap-2 mb-4" id="tabs">
+    <button data-tab="importar" class="tab-btn border-blue-600 text-blue-600">Importar</button>
+    <button data-tab="folio" class="tab-btn">Folio</button>
+    <button data-tab="escanear" class="tab-btn">Escanear</button>
+    <button data-tab="reporte" class="tab-btn">Reporte</button>
+    <button data-tab="historial" class="tab-btn">Historial</button>
+    <button data-tab="admin" class="tab-btn">Admin</button>
   </nav>
 
   <section id="tab-importar">Importar catálogo aquí…</section>
-  <section id="tab-folio" class="hidden">Folio aquí…</section>
-  <section id="tab-escanear" class="hidden">Escáner aquí… <div id="lastItem"></div></section>
+  <section id="tab-folio" class="hidden">Configura folio aquí…</section>
+  <section id="tab-escanear" class="hidden">
+    <div class="cam"><video id="video" autoplay></video></div>
+    <div class="flex gap-2 mt-2">
+      <select id="cameraSelect" class="border p-1"></select>
+      <button id="btnRefreshCam" class="btn bg-gray-200">Refrescar cámaras</button>
+      <button id="btnTorch" class="btn bg-gray-200">Linterna</button>
+      <button id="btnStart" class="btn bg-blue-600 text-white">Iniciar escaneo</button>
+    </div>
+    <div id="lastItem" class="mt-2 text-sm text-gray-700">—</div>
+  </section>
   <section id="tab-reporte" class="hidden">Reporte aquí…</section>
   <section id="tab-historial" class="hidden">Historial aquí…</section>
+  <section id="tab-admin" class="hidden">
+    <button id="btnZip" class="btn bg-purple-600 text-white">Descargar ZIP (admin)</button>
+    <button id="btnClose" class="btn bg-red-600 text-white">Cerrar folio</button>
+  </section>
 </div>
-
-<!-- Firebase compat -->
-<script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-storage-compat.js"></script>
 
 <script>
 (function(){
+  // Firebase init (compat)
   const firebaseConfig = {
-    apiKey: "AIzaSyBGUDLrMfj-8GAJMemkfcHAGmGucMyKKzA",
+    apiKey: "TU_API_KEY",
     authDomain: "cklass-conteo.firebaseapp.com",
     projectId: "cklass-conteo",
     storageBucket: "cklass-conteo.appspot.com",
@@ -70,91 +77,80 @@
   const auth = firebase.auth();
   const db = firebase.firestore();
   const storage = firebase.storage();
+
   db.enablePersistence().catch(()=>{});
 
-  // --- Storage: ruta de catálogo ---
-  const STORAGE_CATALOG_PATH = 'static/catalogo-master.xlsx';
+  // Helpers
+  const $ = id=>document.getElementById(id);
+  const setText=(id,t)=>{const n=$(id); if(n) n.textContent=t;};
 
-  async function cargarCatalogoStorage(forceBust=false){
-    try{
-      console.log('[catalog] fetching', STORAGE_CATALOG_PATH);
-      const ref = storage.ref(STORAGE_CATALOG_PATH);
-      const url = await ref.getDownloadURL();
-      const finalUrl = forceBust ? (url + (url.includes('?')?'&':'?') + 'v=' + Date.now()) : url;
-      const resp = await fetch(finalUrl, { mode:'cors', cache:'no-store' });
-      if(!resp.ok){
-        const t = await resp.text().catch(()=>resp.statusText);
-        throw new Error('HTTP '+resp.status+' '+t.slice(0,140));
-      }
-      console.log('[catalog] OK');
-      setText('lastItem','Catálogo cargado ✅');
-    }catch(e){
-      console.error('[catalog] error', e);
-      // Muestra errores 403/401 que se ven como CORS
-      setText('lastItem','❌ No se pudo leer el catálogo. Revisa reglas de Storage o App Check. '+(e.message||e));
-    }
-  }
-
-  const $ = id => document.getElementById(id);
-  const setText = (id,t)=>{const n=$(id);if(n) n.textContent=t;};
-
-  // Tabs seguros (esperar al DOM)
+  // Tabs
   window.addEventListener('DOMContentLoaded',()=>{
     const tabs=document.querySelectorAll('#tabs [data-tab]');
     tabs.forEach(btn=>{
       btn.addEventListener('click',()=>{
-        const name=btn.dataset.tab;
-        tabs.forEach(b=>b.classList.remove('bg-blue-600','text-white'));
-        btn.classList.add('bg-blue-600','text-white');
-        ['importar','folio','escanear','reporte','historial'].forEach(t=>{
+        tabs.forEach(b=>b.classList.remove('border-blue-600','text-blue-600'));
+        btn.classList.add('border-blue-600','text-blue-600');
+        ['importar','folio','escanear','reporte','historial','admin'].forEach(t=>{
           const s=document.getElementById('tab-'+t);
           if(s) s.classList.add('hidden');
         });
-        const active=document.getElementById('tab-'+name); if(active) active.classList.remove('hidden');
-      });
-    });
-  });
-        const active=$(`#tab-${name}`); if(active) active.classList.remove('hidden');
+        const active=document.getElementById('tab-'+btn.dataset.tab);
+        if(active) active.classList.remove('hidden');
       });
     });
   });
 
-  let CATALOGO={byBarcode:new Map(),byModelo:new Map()};
-  let FOLIO_ID=null;
-  let USER=null;
+  // Auth
+  $('btnLogin').addEventListener('click',async()=>{
+    const provider=new firebase.auth.GoogleAuthProvider();
+    await auth.signInWithPopup(provider);
+  });
+  $('btnLogout').addEventListener('click',()=>auth.signOut());
+  auth.onAuthStateChanged(user=>{
+    $('btnLogin').classList.toggle('hidden',!!user);
+    $('btnLogout').classList.toggle('hidden',!user);
+    if(user){ cargarCatalogo(); }
+  });
 
-  // --- Auth: cargar catálogo SOLO tras login para evitar 401->CORS ---
-  auth.onAuthStateChanged(async(user)=>{
-    USER = user || null;
-    if(USER){
-      try{ await cargarCatalogoStorage(false); }catch{}
+  // Catalog
+  async function cargarCatalogo(){
+    try{
+      const ref=storage.ref('static/catalogo-master.xlsx');
+      const url=await ref.getDownloadURL();
+      const resp=await fetch(url);
+      if(!resp.ok) throw new Error(resp.statusText);
+      setText('lastItem','Catálogo cargado ✅');
+    }catch(e){
+      console.error(e);
+      setText('lastItem','❌ Error cargando catálogo: '+(e.message||e));
     }
+  }
+
+  // Escaneo básico (ejemplo)
+  let stream;
+  $('btnRefreshCam').addEventListener('click',async()=>{
+    const devices=await navigator.mediaDevices.enumerateDevices();
+    $('cameraSelect').innerHTML='';
+    devices.filter(d=>d.kind==='videoinput').forEach(d=>{
+      const opt=document.createElement('option'); opt.value=d.deviceId; opt.text=d.label||d.deviceId;
+      $('cameraSelect').appendChild(opt);
+    });
+  });
+  $('btnStart').addEventListener('click',async()=>{
+    if(stream){stream.getTracks().forEach(t=>t.stop());}
+    stream=await navigator.mediaDevices.getUserMedia({video:{deviceId:$('cameraSelect').value}});
+    $('video').srcObject=stream;
+  });
+  $('btnTorch').addEventListener('click',()=>{
+    if(!stream) return;
+    const track=stream.getVideoTracks()[0];
+    track.applyConstraints({advanced:[{torch:true}]}).catch(()=>alert('No soportado'));
   });
 
-  function computeEAN13CheckDigit(d12){const digits=d12.split('').map(Number);let sum=0;for(let i=0;i<12;i++){sum+=digits[i]*(i%2===0?1:3);}return String((10-(sum%10))%10);}
-  function toEAN13FromGTIN14(gtin14){if(!/^\d{14}$/.test(gtin14))return null;const base12=gtin14.slice(1,13);return base12+computeEAN13CheckDigit(base12);}
-  function tryParseGS1(raw){const s=String(raw).trim();const GS=String.fromCharCode(29);const normalized=s.replace(/\s+/g,'');const parts=[];const reParen=/\((\d{2,4})\)([^()]+)/g;let m;while((m=reParen.exec(normalized))){parts.push({ai:m[1],val:m[2]});}if(parts.length===0&&normalized.includes(GS)){let rest=normalized;while(rest.length>0){const ai=rest.slice(0,2);if(!/\d{2}/.test(ai))break;rest=rest.slice(2);const FIXED={'01':14,'17':6,'15':6,'11':6,'13':6,'12':6};const lenFixed=FIXED[ai]||0;if(lenFixed>0){parts.push({ai,val:rest.slice(0,lenFixed)});rest=rest.slice(lenFixed);if(rest[0]===GS)rest=rest.slice(1);}else{const idx=rest.indexOf(GS);const val=idx>=0?rest.slice(0,idx):rest;parts.push({ai,val});rest=idx>=0?rest.slice(idx+1):'';}}}if(parts.length===0)return null;const aiMap=Object.fromEntries(parts.map(p=>[p.ai,p.val]));if(aiMap['01']){const gtin14=aiMap['01'].slice(0,14);const ean13=toEAN13FromGTIN14(gtin14);return{type:'GS1',raw:s,gtin14,ean13,ai:aiMap};}return{type:'GS1',raw:s,ai:aiMap};}
-  function normalizeBarcode(input){const raw=String(input).trim();const maybeGS1=raw.includes('(')||raw.includes(String.fromCharCode(29))||raw.startsWith('01');if(maybeGS1){const parsed=tryParseGS1(raw);if(parsed?.ean13)return{type:'GS1',ean13:parsed.ean13,meta:parsed};}if(/^\d{13}$/.test(raw)){const cd=computeEAN13CheckDigit(raw.slice(0,12));if(raw[12]!==cd)return{type:'EAN13',ean13:raw.slice(0,12)+cd,corrected:true};return{type:'EAN13',ean13:raw};}if(/^\d{12}$/.test(raw))return{type:'UPCA',ean13:'0'+raw};if(/^\d{14}$/.test(raw)){const ean13=toEAN13FromGTIN14(raw);if(ean13)return{type:'GTIN14',ean13};}return{type:'RAW',raw};}
-
-  async function handleBarcode(code){
-    if(!USER||!FOLIO_ID||CATALOGO.byBarcode.size===0) return;
-    const norm=normalizeBarcode(code);
-    let item=norm.ean13? (CATALOGO.byBarcode.get(norm.ean13)||CATALOGO.byBarcode.get(norm.ean13.replace(/^0/,''))):null;
-    if(!item) item=CATALOGO.byBarcode.get(code.trim());
-    if(!item){setText('lastItem',`No encontrado ${code}`);return;}
-    await registrarScan(item,code,norm.meta?.ai||{});
-    const gs1Info=(norm?.meta?.ai)?` [GS1 ${(norm.meta.ai['17']?'EXP '+norm.meta.ai['17']+' ':'')}${norm.meta.ai['10']?'LOT '+norm.meta.ai['10']+' ':''}${norm.meta.ai['21']?'SER '+norm.meta.ai['21']:''}]`:'';
-    setText('lastItem',`✔ ${item.mod} ${item.color||''} ${item.talla||''} (${norm.ean13||code})${gs1Info}`);
-  }
-
-  async function registrarScan(item,code,ai){
-    const countsRef=db.collection('folios').doc(FOLIO_ID).collection('counts').doc(item.mod);
-    const scansCol=db.collection('folios').doc(FOLIO_ID).collection('scans');
-    await Promise.all([
-      countsRef.set({qty:firebase.firestore.FieldValue.increment(1)},{merge:true}),
-      scansCol.add({code,mod:item.mod,color:item.color||'',talla:item.talla||'',ts:firebase.firestore.FieldValue.serverTimestamp(),user:(USER?.email||USER?.uid||''),ai})
-    ]);
-  }
+  // Admin botones (simples)
+  $('btnZip').addEventListener('click',()=>alert('Descarga ZIP simulada'));
+  $('btnClose').addEventListener('click',()=>alert('Folio cerrado'));
 })();
 </script>
 </body>
