@@ -294,7 +294,9 @@
   async function cargarCatalogoStorage(forceBust=false){
     try{
       setText('masterStatus','Descargando catálogo…');
-      const url = await storage.ref(STORAGE_CATALOG_PATH).getDownloadURL();
+     const url = await storage
+  .refFromURL('gs://cklass-conteo-ec4f5.firebasestorage.app/static/catalogo-master.xlsx')
+  .getDownloadURL();
       const finalUrl = forceBust ? (url + (url.includes('?')?'&':'?')+`v=${Date.now()}`) : url;
       if(detectXlsx(finalUrl)){
         const resp = await fetch(finalUrl,{cache:'no-store'}); if(!resp.ok) throw new Error('HTTP '+resp.status);
