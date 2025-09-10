@@ -10,7 +10,7 @@
   <!-- Scanner -->
   <script src="https://unpkg.com/@ericblade/quagga2/dist/quagga.min.js"></script>
   <!-- XLSX (SheetJS) debe cargarse ANTES del script que lo usa -->
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js"></script>
+  <script src="https://firebasestorage.googleapis.com/v0/b/cklass-conteo-ec4f5.firebasestorage.app/o/static%2Fxlsx.full.min.js?alt=media"></script>
   <!-- Firebase compat (sin módulos) -->
   <script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-auth-compat.js"></script>
@@ -68,7 +68,7 @@
           <input id="folioName" class="border p-2 rounded w-full" placeholder="Nombre del folio" />
           <div class="mt-2 flex gap-2">
             <button id="btnCrearFolio" class="btn bg-green-600 text-white">Crear folio</button>
-            <button id="btnCerrarFolio" class="btn bg-gray-200" title="Solo owner">Cerrar folio</button>
+            button>
           </div>
         </div>
         <div>
@@ -282,7 +282,9 @@
     $('folioStatus').textContent=`Folio: ${id} — ${FOLIO_DOC.name}`;
     $('joinFolioId').value=id;
     const isOwner = u.uid===FOLIO_DOC.ownerUid;
-    $('btnCerrarFolio').disabled = !isOwner; // UI: solo owner
+    const closeBtn=$('btnCerrarFolio');
+    closeBtn.disabled = !isOwner;
+    closeBtn.classList.toggle('hidden', !isOwner);
     subscribeCounts();
     subscribeScans();
   }
