@@ -7,14 +7,11 @@
   <title>Conteo Cíclico CKLASS</title>
   <!-- UI -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Scanner -->
-  <!-- Quagga2 auto-hospedado (sube /static/quagga.min.js al Storage) -->
-  <script src="https://firebasestorage.googleapis.com/v0/b/cklass-conteo-ec4f5.firebasestorage.app/o/static%2Fquagga.min.js?alt=media"></script>
-  <!-- XLSX (SheetJS) debe cargarse ANTES del script que lo usa -->
-  <script src="https://firebasestorage.googleapis.com/v0/b/cklass-conteo-ec4f5.firebasestorage.app/o/static%2Fxlsx.full.min.js?alt=media"></script>
+  <!-- Scanner / XLSX auto-hospedados (evita bloqueos de CDNs) -->
+  <script src="https://firebasestorage.googleapis.com/v0/b/cklass-conteo-ec4f5.appspot.com/o/static%2Fquagga.min.js?alt=media"></script>
+  <script src="https://firebasestorage.googleapis.com/v0/b/cklass-conteo-ec4f5.appspot.com/o/static%2Fxlsx.full.min.js?alt=media"></script>
   <!-- Firebase compat (sin módulos) -->
   <script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-storage-compat.js"></script>
   <style>
@@ -22,41 +19,58 @@
     .tab-btn{padding:.5rem .75rem;border-bottom:2px solid transparent}
     .card{background:#fff;padding:1rem;border-radius:.75rem;box-shadow:0 1px 3px rgba(0,0,0,.1)}
     .cam{height:45vh;max-height:400px;background:#000;overflow:hidden;border-radius:1rem}
+    th,td{padding:.35rem .5rem;border-bottom:1px solid #eee}
   </style>
 </head>
 <body class="bg-gray-50 text-gray-900">
-<div class="max-w-6xl mx-auto p-4">
+<div class="max-w-7xl mx-auto p-4">
   <header class="flex items-center justify-between mb-4">
     <div>
       <h1 class="text-xl font-bold">Conteo Cíclico — Catálogo + Existencias + Escaneo</h1>
       <p class="text-sm text-gray-600">Configuración en PC, escaneo en móviles por folio.</p>
     </div>
-    <div class="flex gap-2 items-center">
-      <span id="userInfo" class="text-xs text-gray-600">—</span>
-      <button id="btnLogin" class="btn bg-emerald-600 text-white">Iniciar sesión</button>
-      <button id="btnLogout" class="btn bg-gray-200 hidden">Salir</button>
-    </div>
+    <div class="text-sm text-gray-600"><span id="envInfo" class="px-2 py-1 rounded bg-gray-100">Sin folio</span></div>
   </header>
 
   <!-- Tabs -->
-  <nav class="flex gap-2 mb-4" id="tabs">
-    <button data-tab="importar" class="tab-btn border-blue-600 text-blue-600">Importar</button>
-    <button data-tab="folio" class="tab-btn">Folio</button>
-    <button data-tab="escanear" class="tab-btn">Escanear</button>
-    <button data-tab="reporte" class="tab-btn">Reporte</button>
-    <button data-tab="historial" class="tab-btn">Historial</button>
+  <nav class="flex flex-wrap gap-2 mb-4" id="tabs">
+    <button data-tab="importar"   class="tab-btn border-blue-600 text-blue-600">Importar</button>
+    <button data-tab="existencias" class="tab-btn">Existencias</button>
+    <button data-tab="folio"      class="tab-btn">Folio</button>
+    <button data-tab="escanear"   class="tab-btn">Escanear</button>
+    <button data-tab="reporte"    class="tab-btn">Reporte</button>
+    <button data-tab="consulta"   class="tab-btn">Consulta</button>
+    <button data-tab="historial"  class="tab-btn">Historial</button>
+    <button data-tab="ajustes"    class="tab-btn">Ajustes</button>
   </nav>
 
-  <!-- Importar -->
+  <!-- Importar catálogo -->
   <section id="tab-importar" class="block">
     <div class="card">
       <h2 class="font-semibold mb-2">Catálogo maestro (Storage)</h2>
-      <p class="text-sm text-gray-600">Lee <code>static/catalogo-master.xlsx</code> del bucket correcto.</p>
-      <div class="flex gap-2 mt-2">
+      <p class="text-sm text-gray-600">Lee <code id="pathHint">static/catalogo-master.xlsx</code> de tu bucket. Columnas esperadas: <code>CODIGO_BARRA</code>, <code>MOD</code>, <code>COLOR</code>, <code>TALLA</code>.</p>
+      <div class="flex flex-wrap gap-2 mt-2 items-center">
         <button id="btnRecargarCloud" class="btn bg-blue-600 text-white">Recargar catálogo</button>
         <button id="btnForzarURL" class="btn bg-amber-500 text-white">Forzar URL única</button>
+        <button id="btnPlantillaCSV" class="btn bg-gray-200">Descargar plantilla CSV</button>
         <span id="importStatus" class="text-sm text-gray-700">—</span>
       </div>
+    </div>
+  </section>
+
+  <!-- Existencias -->
+  <section id="tab-existencias" class="hidden">
+    <div class="card">
+      <h2 class="font-semibold mb-2">Pegar existencias (teórico)</h2>
+      <p class="text-sm text-gray-600">Formato por línea: <code>MODELO,COLOR TALLA CANTIDAD</code> (ej: <code>587-12,NEGRO 250 3</code>) o CSV estricto <code>MODELO,COLOR,TALLA,CANTIDAD</code>.</p>
+      <textarea id="existText" rows="8" class="w-full border rounded p-2" placeholder="Ejemplos&#10;587-12,NEGRO 250 3&#10;ABC-01,ROJO 27 2&#10;ABC-01,ROJO,27,2"></textarea>
+      <div class="flex flex-wrap gap-2 mt-2 items-center">
+        <button id="btnValidarExist" class="btn bg-gray-200">Validar</button>
+        <button id="btnCargarExist" class="btn bg-green-600 text-white">Cargar al folio</button>
+        <button id="btnLimpiarExist" class="btn bg-gray-200">Limpiar</button>
+        <span id="existStatus" class="text-sm text-gray-700">—</span>
+      </div>
+      <div id="existPreview" class="mt-3 text-sm"></div>
     </div>
   </section>
 
@@ -65,19 +79,31 @@
     <div class="card">
       <h2 class="font-semibold mb-2">Folio</h2>
       <div class="grid md:grid-cols-2 gap-4">
-        <div>
-          <input id="folioName" class="border p-2 rounded w-full" placeholder="Nombre del folio" />
+        <div class="space-y-2">
+          <input id="folioName" class="border p-2 rounded w-full" placeholder="Nombre del folio (opcional)" />
+          <div class="grid grid-cols-2 gap-2">
+            <input id="opName"   class="border p-2 rounded" placeholder="Operador / Responsable" />
+            <input id="almacen"  class="border p-2 rounded" placeholder="Tipo de almacén" />
+          </div>
+          <select id="temporada" class="border p-2 rounded w-full">
+            <option value="TODAS">Temporada: TODAS</option>
+            <option value="LINEA">LÍNEA</option>
+            <option value="OFERTA">OFERTA</option>
+            <option value="SALDO">SALDO</option>
+            <option value="PASO">PASO</option>
+          </select>
           <div class="mt-2 flex gap-2">
-            <button id="btnCrearFolio" class="btn bg-green-600 text-white">Crear folio</button>
-            <button id="btnCerrarFolio" class="btn bg-gray-200 hidden" title="Solo owner">Cerrar folio</button>
+            <button id="btnCrearFolio" class="btn bg-green-600 text-white">Crear folio (ID automático)</button>
+            <button id="btnCerrarFolio" class="btn bg-gray-200">Cerrar folio</button>
           </div>
         </div>
-        <div>
-          <input id="joinFolioId" class="border p-2 rounded" placeholder="ID existente" />
-          <div class="mt-2 flex gap-2">
+        <div class="space-y-2">
+          <input id="joinFolioId" class="border p-2 rounded w-full" placeholder="ID existente" />
+          <div class="flex gap-2">
             <button id="btnUnirseFolio" class="btn bg-blue-600 text-white">Unirse</button>
             <button id="btnCopiarLink" class="btn bg-gray-200">Copiar link</button>
           </div>
+          <div class="text-xs text-gray-600">Fecha creación: <span id="folioFecha">—</span></div>
         </div>
       </div>
       <div id="folioStatus" class="text-sm text-gray-600 mt-2">—</div>
@@ -100,9 +126,21 @@
           </div>
         </div>
         <div>
-          <label class="text-sm">Área</label>
-          <input id="scanArea" class="border p-2 rounded w-full mb-2" placeholder="Ej. Bodega / Piso / Caja" />
-          <label class="text-sm">Entrada manual</label>
+          <div class="grid grid-cols-2 gap-2">
+            <input id="scanArea" class="border p-2 rounded" placeholder="Área (persistente)" />
+            <input id="scanPos"  class="border p-2 rounded" placeholder="Posición (persistente)" />
+          </div>
+          <div class="grid grid-cols-2 gap-2 mt-2">
+            <input id="scanOperador" class="border p-2 rounded" placeholder="Operador (persistente)" />
+            <select id="scanTemporada" class="border p-2 rounded">
+              <option value="TODAS">Temporada: TODAS</option>
+              <option value="LINEA">LÍNEA</option>
+              <option value="OFERTA">OFERTA</option>
+              <option value="SALDO">SALDO</option>
+              <option value="PASO">PASO</option>
+            </select>
+          </div>
+          <label class="text-sm mt-2 block">Entrada manual</label>
           <input id="manualCode" class="border p-2 rounded w-full" placeholder="Pega un código y Enter" />
           <div id="lastItem" class="mt-2 text-sm text-gray-700">—</div>
         </div>
@@ -113,14 +151,18 @@
   <!-- Reporte -->
   <section id="tab-reporte" class="hidden">
     <div class="card">
-      <div class="flex gap-2 items-center mb-2">
+      <div class="flex flex-wrap gap-2 items-center mb-2">
         <h2 class="font-semibold">Reporte</h2>
         <select id="groupMode" class="ml-auto border p-1 rounded text-sm">
           <option value="general">General</option>
           <option value="area">Agrupar por área</option>
         </select>
+        <input id="filtroModelo" class="border p-1 rounded text-sm" placeholder="Filtrar modelo" />
+        <input id="filtroColor" class="border p-1 rounded text-sm" placeholder="Filtrar color" />
+        <input id="filtroTalla" class="border p-1 rounded text-sm" placeholder="Filtrar talla" />
         <button id="btnRefrescarReporte" class="btn bg-blue-600 text-white">Refrescar</button>
         <button id="btnExportarCSV" class="btn bg-gray-200">Exportar CSV</button>
+        <button id="btnBorrarArea" class="btn bg-red-600 text-white" title="Elimina scans por área (máx 1000)">Borrar por área</button>
       </div>
       <div class="overflow-auto max-h-[60vh]">
         <table class="w-full text-sm">
@@ -128,6 +170,8 @@
             <tr>
               <th class="text-left">Área</th>
               <th class="text-left">Modelo</th>
+              <th class="text-left">Color</th>
+              <th class="text-left">Talla</th>
               <th class="text-right">Teórico</th>
               <th class="text-right">Escaneado</th>
               <th class="text-right">Diferencia</th>
@@ -135,6 +179,64 @@
           </thead>
           <tbody id="reportBody"></tbody>
         </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Consulta -->
+  <section id="tab-consulta" class="hidden">
+    <div class="card">
+      <h2 class="font-semibold mb-2">Consulta de modelo / color / talla</h2>
+      <div class="grid md:grid-cols-4 gap-2">
+        <input id="qModelo" class="border p-2 rounded" placeholder="Modelo" />
+        <input id="qColor"  class="border p-2 rounded" placeholder="Color" />
+        <input id="qTalla"  class="border p-2 rounded" placeholder="Talla" />
+        <button id="btnBuscarModelo" class="btn bg-blue-600 text-white">Buscar</button>
+      </div>
+      <div class="overflow-auto max-h-[60vh] mt-3">
+        <table class="w-full text-sm">
+          <thead class="sticky top-0 bg-white">
+            <tr>
+              <th class="text-left">Fecha</th>
+              <th class="text-left">Área</th>
+              <th class="text-left">Posición</th>
+              <th class="text-left">Operador</th>
+              <th class="text-left">Temporada</th>
+            </tr>
+          </thead>
+          <tbody id="consultaBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Ajustes -->
+  <section id="tab-ajustes" class="hidden">
+    <div class="card">
+      <h2 class="font-semibold mb-2">Ajustes</h2>
+      <div class="grid md:grid-cols-2 gap-4">
+        <div class="space-y-2">
+          <label class="text-sm">Ruta del catálogo en Storage (relative path)</label>
+          <input id="cfgCatalogPath" class="border p-2 rounded w-full" placeholder="static/catalogo-master.xlsx" />
+          <div class="flex items-center gap-2 mt-2">
+            <input type="checkbox" id="cfgBeep" class="scale-125"> <label for="cfgBeep">Beep al detectar</label>
+          </div>
+          <div class="flex items-center gap-2">
+            <input type="checkbox" id="cfgVibrate" class="scale-125"> <label for="cfgVibrate">Vibrar al detectar</label>
+          </div>
+          <div class="flex items-center gap-2">
+            <input type="checkbox" id="cfgRememberCam" class="scale-125"> <label for="cfgRememberCam">Recordar cámara seleccionada</label>
+          </div>
+          <button id="btnGuardarCfg" class="btn bg-emerald-600 text-white mt-2">Guardar ajustes</button>
+        </div>
+        <div class="text-sm text-gray-600">
+          <p><b>Consejos:</b></p>
+          <ul class="list-disc pl-5 space-y-1">
+            <li>Si los nombres de cámaras salen vacíos, pulsa <em>Refrescar cámaras</em> para que el navegador solicite permiso y revele las etiquetas.</li>
+            <li>El beep usa WebAudio (no requiere archivos). La vibración depende del dispositivo.</li>
+            <li>Los ajustes se guardan en este navegador (localStorage).</li>
+          </ul>
+        </div>
       </div>
     </div>
   </section>
@@ -149,9 +251,12 @@
             <tr>
               <th class="text-left">Fecha</th>
               <th class="text-left">Área</th>
+              <th class="text-left">Posición</th>
               <th class="text-left">Código</th>
               <th class="text-left">Modelo</th>
-              <th class="text-left">Usuario</th>
+              <th class="text-left">Color</th>
+              <th class="text-left">Talla</th>
+              <th class="text-left">Operador</th>
             </tr>
           </thead>
           <tbody id="historyBody"></tbody>
@@ -163,78 +268,94 @@
 
 <script>
 (function(){
-  // ===== Firebase init =====
+  // ===== Firebase =====
   const firebaseConfig = {
     apiKey: "AIzaSyBe23iKn2bl0YMxsXUiTN5SkUrD9Vhvfo",
     authDomain: "cklass-conteo-ec4f5.firebaseapp.com",
     projectId: "cklass-conteo-ec4f5",
-    // Bucket CORRECTO (coincide con gsutil ls)
-    storageBucket: "cklass-conteo-ec4f5.firebasestorage.app",
-    messagingSenderId: "148726861241",
-    appId: "1:148726861241:web:592f683e941d13d2829e68",
-    measurementId: "G-EMVHW8SQMN"
+    storageBucket: "cklass-conteo-ec4f5.appspot.com",
+    appId: "1:148726861241:web:592f683e941d13d2829e68"
   };
   firebase.initializeApp(firebaseConfig);
-  const auth=firebase.auth();
   const db=firebase.firestore();
   const storage=firebase.storage();
   db.enablePersistence().catch(()=>{});
 
+  // ===== Settings (persisten en localStorage) =====
+  const DEFAULTS = { catalogPath: 'static/catalogo-master.xlsx', beep:true, vibrate:true, rememberCam:true };
+  let SETTINGS = (()=>{ try{ return {...DEFAULTS, ...(JSON.parse(localStorage.getItem('settings')||'{}'))}; }catch{ return {...DEFAULTS}; } })();
+  function saveSettings(){ try{ localStorage.setItem('settings', JSON.stringify(SETTINGS)); }catch{} }
+
   // ===== Helpers =====
-  // Carga resiliente de SheetJS si el CDN original fue bloqueado por la red
-  function loadScript(src){
-    return new Promise((resolve,reject)=>{ const s=document.createElement('script'); s.src=src; s.async=true; s.onload=resolve; s.onerror=()=>reject(new Error('No se pudo cargar '+src)); document.head.appendChild(s); });
-  }
-  async function ensureXLSX(){
-    if(window.XLSX) return;
-    const cdns=[
-      'https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js',
-      'https://unpkg.com/xlsx@0.19.3/dist/xlsx.full.min.js',
-      'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.19.3/xlsx.full.min.js'
-    ];
-    for(const url of cdns){
-      try{ await loadScript(url); if(window.XLSX) return; }catch(e){ /* intenta siguiente */ }
-    }
-    throw new Error('XLSX no disponible (CDNs bloqueados)');
-  }
   const $=id=>document.getElementById(id);
   const on=(id,ev,fn)=>{const n=$(id); if(n) n.addEventListener(ev,fn);};
   const esc=s=>String(s).replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]));
   const fmt=d=>{const p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`};
+  const canon = s => (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase();
+  const keyOf=(mod,color,talla)=>`${(mod||'').trim()}|${(color||'').trim()}|${(talla||'').trim()}`;
+  const splitKey=k=>{const [mod,color,talla]=String(k||'').split('|'); return {mod,color,talla};};
+  function loadScript(src){ return new Promise((res,rej)=>{const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=()=>rej(new Error('No se pudo cargar '+src)); document.head.appendChild(s);}); }
+  async function ensureXLSX(){ if(window.XLSX) return; const cdns=[
+    'https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js',
+    'https://unpkg.com/xlsx@0.19.3/dist/xlsx.full.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.19.3/xlsx.full.min.js'
+  ]; for(const u of cdns){ try{ await loadScript(u); if(window.XLSX) return; }catch(e){} } throw new Error('XLSX no disponible'); }
 
-  // ===== Tabs =====
-  function showTab(name){
-    ['importar','folio','escanear','reporte','historial'].forEach(t=>{
-      const el=$('tab-'+t); if(!el) return; el.classList.toggle('hidden',t!==name); el.classList.toggle('block',t===name);
-    });
-  }
+  // Tabs
+  function showTab(name){ ['importar','existencias','folio','escanear','reporte','consulta','ajustes','historial'].forEach(t=>{ const el=$('tab-'+t); if(!el) return; el.classList.toggle('hidden',t!==name); el.classList.toggle('block',t===name); }); }
   window.addEventListener('DOMContentLoaded',()=>{
     const tabs=document.querySelectorAll('#tabs [data-tab]');
-    tabs.forEach(btn=>btn.addEventListener('click',()=>{
-      tabs.forEach(b=>b.classList.remove('border-blue-600','text-blue-600'));
-      btn.classList.add('border-blue-600','text-blue-600');
-      showTab(btn.dataset.tab);
-    }));
+    tabs.forEach(btn=>btn.addEventListener('click',()=>{ tabs.forEach(b=>b.classList.remove('border-blue-600','text-blue-600')); btn.classList.add('border-blue-600','text-blue-600'); showTab(btn.dataset.tab); }));
     showTab('importar');
+    // Restaurar persistentes de escaneo
+    ['opName','almacen','temporada','scanArea','scanPos','scanOperador','scanTemporada'].forEach(id=>{ const el=$(id); if(!el) return; const v=localStorage.getItem(id); if(v!==null) el.value=v; el.addEventListener('change',e=>localStorage.setItem(id,e.target.value)); el.addEventListener('input',e=>localStorage.setItem(id,e.target.value)); });
+    // Cargar ajustes
+    $('cfgCatalogPath').value = SETTINGS.catalogPath;
+    $('cfgBeep').checked = !!SETTINGS.beep;
+    $('cfgVibrate').checked = !!SETTINGS.vibrate;
+    $('cfgRememberCam').checked = !!SETTINGS.rememberCam;
+    $('pathHint').textContent = SETTINGS.catalogPath;
   });
 
-  // ===== Auth =====
-  on('btnLogin','click',async()=>{ try{ await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); }catch(e){ alert('No se pudo iniciar sesión'); }});
-  on('btnLogout','click',()=>auth.signOut());
-  auth.onAuthStateChanged(u=>{
-    $('btnLogin').classList.toggle('hidden',!!u);
-    $('btnLogout').classList.toggle('hidden',!u);
-    $('userInfo').textContent = u? (u.email||u.uid) : '—';
+  on('btnGuardarCfg','click',()=>{
+    SETTINGS.catalogPath = ($('#cfgCatalogPath')?.value||DEFAULTS.catalogPath).trim()||DEFAULTS.catalogPath;
+    SETTINGS.beep = !!$('#cfgBeep')?.checked;
+    SETTINGS.vibrate = !!$('#cfgVibrate')?.checked;
+    SETTINGS.rememberCam = !!$('#cfgRememberCam')?.checked;
+    saveSettings();
+    $('pathHint').textContent = SETTINGS.catalogPath;
+    alert('Ajustes guardados');
   });
 
-  // ===== Catálogo (Storage) =====
-  const GS_PATH = 'gs://cklass-conteo-ec4f5.firebasestorage.app/static/catalogo-master.xlsx';
+  // ===== Catálogo =====
+  let CATALOGO = { byBarcode:new Map(), byVariant:new Map() };
+  function buildCatalog(rows){
+    const res={ byBarcode:new Map(), byVariant:new Map() };
+    const H=(rows[0]||[]).map(canon);
+    const idx=names=>names.map(n=>H.indexOf(canon(n))).find(i=>i>=0);
+    const iCode=idx(['CODIGO_BARRA','CODIGO','EAN','UPC']);
+    const iMod =idx(['MOD','MODELO','SKU']);
+    const iColor=idx(['COLOR']);
+    const iTalla=idx(['TALLA']);
+    for(let r=1;r<rows.length;r++){
+      const row=rows[r]||[];
+      const code=String(row[iCode]||'').trim();
+      const mod=String(row[iMod]||'').trim();
+      const color=String(row[iColor]||'').trim();
+      const talla=String(row[iTalla]||'').trim();
+      if(!code||!mod) continue;
+      const vkey=keyOf(mod,color,talla);
+      const item={mod,color,talla,vkey};
+      res.byBarcode.set(code,item);
+      if(!res.byVariant.has(vkey)) res.byVariant.set(vkey,item);
+    }
+    return res;
+  }
   async function cargarCatalogoStorage(force=false){
-    await ensureXLSX();
     try{
+      await ensureXLSX();
       $('importStatus').textContent='Descargando…';
-      const ref = storage.refFromURL(GS_PATH); // fuerza el bucket correcto
-      const url = await ref.getDownloadURL();
+      const url=await storage.ref(SETTINGS.catalogPath).getDownloadURL();
       const finalUrl = force ? `${url}${url.includes('?')?'&':'?'}v=${Date.now()}` : url;
       const resp=await fetch(finalUrl,{cache:'no-store'});
       if(!resp.ok) throw new Error('HTTP '+resp.status);
@@ -242,202 +363,246 @@
       const wb=XLSX.read(ab,{type:'array'});
       const sh=wb.Sheets[wb.SheetNames[0]];
       const rows=XLSX.utils.sheet_to_json(sh,{header:1,defval:''});
-      $('importStatus').textContent=`Catálogo OK: ${rows.length-1} filas (hoja: ${wb.SheetNames[0]})`;
       CATALOGO = buildCatalog(rows);
+      $('importStatus').textContent=`Catálogo OK: ${rows.length-1} filas (hoja: ${wb.SheetNames[0]})`;
     }catch(e){ console.error(e); $('importStatus').textContent='❌ '+(e.message||e); }
   }
   on('btnRecargarCloud','click',()=>cargarCatalogoStorage(false));
   on('btnForzarURL','click',()=>cargarCatalogoStorage(true));
+  on('btnPlantillaCSV','click',()=>{ const csv='MODELO,COLOR,TALLA,CANTIDAD\n587-12,NEGRO,250,3\n'; const blob=new Blob([csv],{type:'text/csv'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='plantilla_existencias.csv'; a.click(); URL.revokeObjectURL(a.href); });
 
-  let CATALOGO = { byBarcode:new Map(), byModelo:new Map() };
-  const canon = s => (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase();
-  function buildCatalog(rows){
-    const res={ byBarcode:new Map(), byModelo:new Map() };
-    const H=(rows[0]||[]).map(canon);
-    const idx=names=>names.map(n=>H.indexOf(canon(n))).find(i=>i>=0);
-    const iCode=idx(['CODIGO_BARRA','CODIGO','EAN','UPC']);
-    const iMod =idx(['MOD','MODELO','SKU']);
-    for(let r=1;r<rows.length;r++){
-      const row=rows[r]||[]; const code=String(row[iCode]||'').trim(); const mod=String(row[iMod]||'').trim();
-      if(!code||!mod) continue;
-      res.byBarcode.set(code,{mod});
-      if(!res.byModelo.has(mod)) res.byModelo.set(mod,true);
-    }
-    return res;
-  }
-
-  // ===== Folio =====
-  let FOLIO_ID=null; let FOLIO_DOC=null; let COUNTS=new Map();
-  // Agregados exactos por área (area -> Map(mod -> qty))
-  let AGG_BY_AREA = new Map();
-  async function nextFolioId(){
-    const cref = db.collection('counters').doc('folios');
-    const next = await db.runTransaction(async tr => {
-      const snap = await tr.get(cref);
-      const last = snap.exists ? (snap.data().last||0) : 0;
-      const n = last + 1;
-      tr.set(cref,{last:n},{merge:true});
-      return n;
-    });
-    return String(next);
+  // ===== Folio (ID incremental) =====
+  let FOLIO_ID=null; let FOLIO_DOC=null; let COUNTS=new Map(); let AGG_BY_AREA=new Map();
+  async function nextFolioNumber(){
+    const ref=db.collection('meta').doc('counters');
+    const n = await db.runTransaction(async tx=>{ const snap=await tx.get(ref); const cur = snap.exists ? (snap.data().nextFolio||1) : 1; tx.set(ref,{nextFolio:cur+1},{merge:true}); return cur; });
+    return n;
   }
   async function crearFolio(){
     try{
-      const name=(document.getElementById('folioName')?.value||'Cíclico').trim()||'Cíclico';
-      const id = await nextFolioId();
-      const ref=db.collection('folios').doc(id);
-      await ref.set({ id, name, state:'open', createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+      const name=($('#folioName')?.value||'Cíclico').trim()||'Cíclico';
+      const operador=($('#opName')?.value||'').trim();
+      const almacen=($('#almacen')?.value||'').trim();
+      const temporada=$('#temporada')?.value||'TODAS';
+      const num = await nextFolioNumber();
+      const id  = String(num).padStart(6,'0');
+      const ref = db.collection('folios').doc(id);
+      await ref.set({ id, number:num, name, operador, almacen, temporada, state:'open', existenciasMap:{}, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
       await activarFolio(id);
-    }catch(e){ console.error(e); alert('No se pudo crear el folio'); }
-  });
-    await activarFolio(ref.id);
+    }catch(e){ console.error(e); alert('No se pudo crear folio'); }
   }
   async function activarFolio(id){
     const snap=await db.collection('folios').doc(id).get();
     if(!snap.exists) return alert('Folio no encontrado');
     FOLIO_ID=id; FOLIO_DOC=snap.data();
-    document.getElementById('folioStatus').textContent=`Folio: ${id} — ${FOLIO_DOC.name}`;
-    document.getElementById('joinFolioId').value=id;
-    (function(){const el=document.getElementById('folioFecha'); if(el) el.textContent = FOLIO_DOC.createdAt?.toDate? fmt(FOLIO_DOC.createdAt.toDate()): '—';})();
-    const closeBtn=document.getElementById('btnCerrarFolio');
-    if(closeBtn){ closeBtn.disabled=false; closeBtn.classList.remove('hidden'); }
-    subscribeCounts();
-    subscribeScans();
-  } — ${FOLIO_DOC.name}`;
+    $('envInfo').textContent = `Folio ${id}`;
     $('joinFolioId').value=id;
-    const isOwner = u.uid===FOLIO_DOC.ownerUid;
-    const closeBtn=$('btnCerrarFolio');
-    closeBtn.disabled = !isOwner;
-    closeBtn.classList.toggle('hidden', !isOwner);
-    subscribeCounts();
-    subscribeScans();
+    const dt=FOLIO_DOC.createdAt?.toDate ? FOLIO_DOC.createdAt.toDate() : new Date();
+    $('folioFecha').textContent = fmt(dt);
+    $('folioStatus').innerHTML = `Folio: <b>${id}</b> — ${esc(FOLIO_DOC.name||'')} · Operador: ${esc(FOLIO_DOC.operador||'')} · Almacén: ${esc(FOLIO_DOC.almacen||'')} · Temporada: ${esc(FOLIO_DOC.temporada||'')}`;
+    subscribeCounts(); subscribeScans();
   }
-  async function unirseFolio(){
-    const id=(document.getElementById('joinFolioId')?.value||'').trim();
-    if(!id) return;
-    await activarFolio(id);
-  });
-    await activarFolio(id);
-  }
+  async function unirseFolio(){ const id=($('#joinFolioId')?.value||'').trim(); if(!id) return; await activarFolio(id); }
   on('btnCrearFolio','click',crearFolio);
   on('btnUnirseFolio','click',unirseFolio);
   on('btnCopiarLink','click',()=>{ if(!FOLIO_ID) return; const u=new URL(location.href); u.searchParams.set('folio',FOLIO_ID); navigator.clipboard.writeText(u.toString()); alert('Link copiado'); });
-  on('btnCerrarFolio','click',async()=>{ if(!FOLIO_ID) return; await db.collection('folios').doc(FOLIO_ID).update({state:'closed'}); alert('Folio cerrado'); }); if(!snap.exists) return; if(snap.data().ownerUid!==u.uid) return alert('Solo owner'); await db.collection('folios').doc(FOLIO_ID).update({state:'closed'}); alert('Folio cerrado'); });
+  on('btnCerrarFolio','click',async()=>{ if(!FOLIO_ID) return; await db.collection('folios').doc(FOLIO_ID).update({state:'closed'}); alert('Folio cerrado'); });
+
+  // ===== Existencias (pegar + validar) =====
+  on('btnLimpiarExist','click',()=>{ $('existText').value=''; $('existStatus').textContent='—'; $('existPreview').innerHTML=''; });
+  on('btnValidarExist','click',()=>renderExistPreview(parseExistencias($('existText').value||'')));
+  on('btnCargarExist','click',async()=>{
+    try{
+      if(!FOLIO_ID) return alert('Crea/Activa un folio');
+      const map=parseExistencias($('existText').value||'').map; if(Object.keys(map).length===0) return alert('No hay líneas válidas');
+      await db.collection('folios').doc(FOLIO_ID).set({ existenciasMap: map, updatedAt: firebase.firestore.FieldValue.serverTimestamp() },{merge:true});
+      $('existStatus').textContent=`Cargadas ${Object.keys(map).length} variantes`;
+    }catch(e){ console.error(e); $('existStatus').textContent='❌ '+(e.message||e); }
+  });
+  function parseExistencias(text){
+    const out={}, bad=[];
+    const lines=(text||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+    for(let i=0;i<lines.length;i++){
+      const ln=lines[i];
+      let m = ln.match(/^([^,]+),\s*([^,\s]+)\s+([\w\.\-]+)\s+(\d+)$/i);
+      if(!m){
+        const p = ln.split(',').map(s=>s.trim());
+        if(p.length>=4 && /^\d+$/.test(p[p.length-1])){
+          const mod=p[0], color=p[1], talla=p[2], qty=parseInt(p[p.length-1],10);
+          const k=keyOf(mod,color,talla); out[k]=(out[k]||0)+qty; continue;
+        }
+      } else {
+        const [,mod,color,talla,qty]=m; const k=keyOf(mod,color,talla); out[k]=(out[k]||0)+parseInt(qty,10); continue;
+      }
+      bad.push({line:i+1, text:ln});
+    }
+    return {map:out, bad, total:Object.values(out).reduce((a,b)=>a+b,0)};
+  }
+  function renderExistPreview(res){
+    const rows = Object.entries(res.map).slice(0,500).map(([k,qty])=>{ const {mod,color,talla}=splitKey(k); return `<tr><td>${esc(mod)}</td><td>${esc(color)}</td><td>${esc(talla)}</td><td class=\"text-right\">${qty}</td></tr>`; }).join('');
+    const bads = res.bad.map(b=>`<li>L${b.line}: ${esc(b.text)}</li>`).join('');
+    $('existPreview').innerHTML = `
+      <div class='mt-2'>
+        <div class='text-sm'>Variantes válidas: <b>${Object.keys(res.map).length}</b> · Pzs: <b>${res.total}</b> ${res.bad.length?`· Inválidas: <b class='text-red-600'>${res.bad.length}</b>`:''}</div>
+        <div class='grid md:grid-cols-2 gap-4 mt-2'>
+          <div class='overflow-auto max-h-[40vh]'>
+            <table class='w-full text-sm'><thead><tr><th>Modelo</th><th>Color</th><th>Talla</th><th class='text-right'>Cant</th></tr></thead><tbody>${rows}</tbody></table>
+          </div>
+          <div>
+            ${res.bad.length?`<h3 class='font-semibold mb-1'>Líneas inválidas</h3><ul class='list-disc pl-5 text-red-600 text-sm'>${bads}</ul>`:"<div class='text-sm text-emerald-700'>Sin errores</div>"}
+          </div>
+        </div>
+      </div>`;
+  }
 
   // ===== Realtime =====
-  function subscribeCounts(){
-    if(!FOLIO_ID) return; COUNTS.clear();
-    db.collection('folios').doc(FOLIO_ID).collection('counts').onSnapshot(snap=>{
-      snap.forEach(d=>COUNTS.set(d.id, d.data().qty||0));
-    });
-  }
-  function subscribeScans(){
-    if(!FOLIO_ID) return;
-    db.collection('folios').doc(FOLIO_ID).collection('scans').orderBy('ts','desc').limit(500).onSnapshot(snap=>{
-      const rows=[]; snap.forEach(d=>{const x=d.data(); const dt=x.ts?.toDate?x.ts.toDate():new Date(); rows.push(`<tr><td>${fmt(dt)}</td><td>${esc(x.area||'')}</td><td>${esc(x.code)}</td><td>${esc(x.mod||'')}</td><td>${esc(x.user||'')}</td></tr>`);});
-      $('historyBody').innerHTML=rows.join('');
-    });
-  }
+  function subscribeCounts(){ if(!FOLIO_ID) return; COUNTS.clear(); db.collection('folios').doc(FOLIO_ID).collection('counts').onSnapshot(snap=>{ snap.forEach(d=>COUNTS.set(d.id, d.data().qty||0)); }); }
+  function subscribeScans(){ if(!FOLIO_ID) return; db.collection('folios').doc(FOLIO_ID).collection('scans').orderBy('ts','desc').limit(500).onSnapshot(snap=>{ const rows=[]; snap.forEach(d=>{const x=d.data(); const dt=x.ts?.toDate?x.ts.toDate():new Date(); rows.push(`<tr><td>${fmt(dt)}</td><td>${esc(x.area||'')}</td><td>${esc(x.pos||'')}</td><td>${esc(x.code)}</td><td>${esc(x.mod||'')}</td><td>${esc(x.color||'')}</td><td>${esc(x.talla||'')}</td><td>${esc(x.operador||x.user||'')}</td></tr>`);}); $('historyBody').innerHTML=rows.join(''); }); }
 
-  // ===== GS1 mínima (normaliza a EAN13 cuando se pueda) =====
+  // ===== GS1 mínima =====
   function computeEAN13CheckDigit(d12){const a=d12.split('').map(Number);let s=0;for(let i=0;i<12;i++) s+=a[i]*(i%2?3:1);return String((10-(s%10))%10)}
   function toEAN13FromGTIN14(gt){if(!/^\d{14}$/.test(gt)) return null; const b=gt.slice(1,13); return b+computeEAN13CheckDigit(b)}
   function normalizeBarcode(raw){const s=String(raw).trim(); if(/^\d{13}$/.test(s)){const cd=computeEAN13CheckDigit(s.slice(0,12)); return {ean13:s.slice(0,12)+cd};} if(/^\d{12}$/.test(s)) return {ean13:'0'+s}; if(/^\d{14}$/.test(s)) return {ean13:toEAN13FromGTIN14(s)}; return {raw:s};}
 
-  // ===== Escáner =====
-  let scanning=false; let activeTrack=null; let TORCH=false;
-  on('btnRefreshCam','click',async()=>{ const list=await navigator.mediaDevices.enumerateDevices(); const cams=list.filter(d=>d.kind==='videoinput'); $('cameraSelect').innerHTML=cams.map(d=>`<option value="${d.deviceId}">${d.label||('Cam '+d.deviceId.slice(-4))}</option>`).join(''); });
+  // ===== Beep/Vibrar =====
+  let audioCtx=null; function beep(){ if(!SETTINGS.beep) return; try{ audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)(); const o=audioCtx.createOscillator(), g=audioCtx.createGain(); o.type='sine'; o.frequency.value=880; o.connect(g); g.connect(audioCtx.destination); g.gain.setValueAtTime(0.0001,audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.2,audioCtx.currentTime+0.01); o.start(); g.gain.exponentialRampToValueAtTime(0.0001,audioCtx.currentTime+0.12); o.stop(audioCtx.currentTime+0.13);}catch{} }
+  function vibrate(){ if(SETTINGS.vibrate && navigator.vibrate) navigator.vibrate(60); }
+
+  // ===== Cámara =====
+  async function ensureCamAccess(){
+    const list=await navigator.mediaDevices.enumerateDevices();
+    if(list.some(d=>d.kind==='videoinput' && d.label)) return;
+    try{ const s=await navigator.mediaDevices.getUserMedia({video:true}); s.getTracks().forEach(t=>t.stop()); }catch{}
+  }
+  async function refreshCams(){
+    await ensureCamAccess();
+    const list=await navigator.mediaDevices.enumerateDevices();
+    const cams=list.filter(d=>d.kind==='videoinput');
+    const sel=$('cameraSelect'); sel.innerHTML=cams.map(d=>`<option value="${d.deviceId}">${d.label||('Cam '+d.deviceId.slice(-4))}</option>`).join('');
+    const saved=SETTINGS.rememberCam ? localStorage.getItem('cameraDeviceId') : null;
+    if(saved && cams.some(c=>c.deviceId===saved)) sel.value=saved;
+  }
+  on('btnRefreshCam','click',refreshCams);
+  on('cameraSelect','change',e=>{ if(SETTINGS.rememberCam) localStorage.setItem('cameraDeviceId', e.target.value); });
+
   on('btnStart','click',startScanner);
   on('btnStop','click',stopScanner);
-  on('btnTorch','click',async()=>{ try{ activeTrack = activeTrack || document.querySelector('#interactive video')?.srcObject?.getVideoTracks?.()[0]; await activeTrack.applyConstraints({advanced:[{torch: !(TORCH=!TORCH)}]}); }catch{ alert('Linterna no soportada'); }});
+  on('btnTorch','click',async()=>{ try{ const v=document.querySelector('#interactive video'); const track=v?.srcObject?.getVideoTracks?.()[0]; await track.applyConstraints({advanced:[{torch:true}]}); }catch{ alert('Linterna no soportada'); }});
   on('manualCode','keydown',e=>{ if(e.key==='Enter'){ const v=e.currentTarget.value.trim(); if(v) handleBarcode(v); e.currentTarget.value=''; }});
 
+  let scanning=false; let lastDetect=0;
   async function startScanner(){
     if(scanning) return; if(!window.Quagga) return alert('Quagga no disponible');
-    scanning=true;
-    const devId=$('cameraSelect').value || undefined;
+    scanning=true; await refreshCams();
+    const devId = SETTINGS.rememberCam ? (localStorage.getItem('cameraDeviceId')||$('cameraSelect').value||undefined) : ($('cameraSelect').value||undefined);
     try{
       await Quagga.init({ inputStream:{ name:'Live', type:'LiveStream', target: document.querySelector('#interactive'), constraints: devId? {deviceId:devId}:{ facingMode:'environment'} }, decoder:{ readers:['ean_reader','ean_8_reader','upc_reader','upc_e_reader','code_128_reader'] }, locate:true });
       Quagga.start();
-      setTimeout(()=>{ try{ const v=document.querySelector('#interactive video'); activeTrack=v?.srcObject?.getVideoTracks?.()[0]; }catch{} },300);
-      Quagga.onDetected(res=>{ const code=(res?.codeResult?.code||'').trim(); if(code) handleBarcode(code); });
+      Quagga.onDetected(res=>{ const now=Date.now(); if(now-lastDetect<400) return; lastDetect=now; const code=(res?.codeResult?.code||'').trim(); if(code) handleBarcode(code); });
     }catch(e){ console.error(e); scanning=false; alert('No se pudo iniciar cámara'); }
   }
-  function stopScanner(){ try{ Quagga.stop(); }catch{} scanning=false; activeTrack=null; TORCH=false; }
+  function stopScanner(){ try{ Quagga.stop(); }catch{} scanning=false; }
 
   async function handleBarcode(code){
     if(!FOLIO_ID) return alert('Sin folio'); if(CATALOGO.byBarcode.size===0) return alert('Catálogo no cargado');
     const n=normalizeBarcode(code); const key=n.ean13||code; const item = CATALOGO.byBarcode.get(key)||CATALOGO.byBarcode.get(String(code));
     if(!item){ $('lastItem').textContent='No encontrado: '+code; return; }
-    const area = ($('#scanArea').value||'').trim();
-    await registrarScan(item, code, area);
-    $('lastItem').textContent = `✔ ${item.mod} (${key}) ${area? '— '+area:''}`;
+    const area = ($('#scanArea')?.value||'').trim();
+    const pos  = ($('#scanPos')?.value||'').trim();
+    const operador  = ($('#scanOperador')?.value||$('#opName')?.value||'').trim();
+    const temporada = $('#scanTemporada')?.value||FOLIO_DOC?.temporada||'TODAS';
+    await registrarScan(item, code, {area,pos,operador,temporada});
+    beep(); vibrate();
+    $('lastItem').textContent = `✔ ${item.mod} ${item.color||''} ${item.talla||''} (${key}) — ${area}${pos?(' · '+pos):''}`;
   }
-  async function registrarScan(item, code, area){
+  async function registrarScan(item, code, meta){
     const folio=db.collection('folios').doc(FOLIO_ID);
-    const operador = document.getElementById('opName')?.value || '';
+    const vkey=item.vkey||keyOf(item.mod,item.color,item.talla);
     await Promise.all([
-      folio.collection('counts').doc(item.mod).set({ qty: firebase.firestore.FieldValue.increment(1) },{merge:true}),
-      folio.collection('scans').add({ code, mod:item.mod, area, user:operador, ts: firebase.firestore.FieldValue.serverTimestamp() })
-    ]).catch(()=>alert('Error registrando'));
-  },{merge:true}),
-      folio.collection('scans').add({ code, mod:item.mod, area, user:(u?.email||u?.uid||''), ts: firebase.firestore.FieldValue.serverTimestamp() })
-    ]).catch(()=>alert('Error registrando'));
+      folio.collection('counts').doc(vkey).set({ qty: firebase.firestore.FieldValue.increment(1) },{merge:true}),
+      folio.collection('scans').add({ code, mod:item.mod, color:item.color||'', talla:item.talla||'', vkey, area:meta.area, pos:meta.pos, operador:meta.operador, temporada:meta.temporada, ts: firebase.firestore.FieldValue.serverTimestamp() })
+    ]).catch(e=>{console.error(e); alert('Error registrando');});
   }
 
   // ===== Reporte =====
   on('btnRefrescarReporte','click', async ()=>{ await loadAggregatesByArea(); renderReport(); });
   on('btnExportarCSV','click',()=>{
     const rows = buildReportRows($('#groupMode').value==='area');
-    const csv = ['Area,Modelo,Teorico,Escaneado,Diferencia'].concat(rows.map(r=>[r.area||'',r.mod,r.theo,r.scan,r.diff].join(','))).join('\n');
+    const csv = ['Area,Modelo,Color,Talla,Teorico,Escaneado,Diferencia']
+      .concat(rows.map(r=>[r.area||'',r.mod,r.color||'',r.talla||'',r.theo,r.scan,r.diff].join(',')))
+      .join('\n');
     const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`reporte_${FOLIO_ID||'sin_folio'}.csv`; a.click(); URL.revokeObjectURL(a.href);
+  });
+  on('btnBorrarArea','click', async ()=>{
+    if(!FOLIO_ID) return alert('Sin folio');
+    const area=prompt('Área a borrar (borra todos los scans del área, máx 1000 docs por ejecución):');
+    if(!area) return; if(!confirm('¿Seguro de borrar scans del área '+area+'?')) return;
+    const q = await db.collection('folios').doc(FOLIO_ID).collection('scans').where('area','==',area).limit(1000).get();
+    const batch=db.batch(); q.forEach(d=>batch.delete(d.ref)); await batch.commit(); alert('Borrados: '+q.size);
   });
 
   function buildReportRows(byArea){
-    const ex = (FOLIO_DOC?.existencias)||{};
+    const ex = (FOLIO_DOC?.existenciasMap)||{};
     const rows=[];
+    const modF = ($('#filtroModelo')?.value||'').trim().toUpperCase();
+    const colF = ($('#filtroColor')?.value||'').trim().toUpperCase();
+    const talF = ($('#filtroTalla')?.value||'').trim().toUpperCase();
+
     if(byArea){
       AGG_BY_AREA.forEach((mods, area)=>{
-        mods.forEach((scan, mod)=>{
-          const theo = Number(ex[mod]||0);
-          rows.push({ area, mod, theo, scan, diff: scan - theo });
+        mods.forEach((scan, vkey)=>{
+          const {mod,color,talla}=splitKey(vkey);
+          if(modF && !mod.toUpperCase().includes(modF)) return;
+          if(colF && !(color||'').toUpperCase().includes(colF)) return;
+          if(talF && !(talla||'').toUpperCase().includes(talF)) return;
+          const theo = Number(ex[vkey]||0);
+          rows.push({ area, mod, color, talla, theo, scan, diff: scan - theo });
         });
       });
-      return rows.sort((a,b)=> (a.area||'').localeCompare(b.area||'') || a.mod.localeCompare(b.mod));
+      return rows.sort((a,b)=> (a.area||'').localeCompare(b.area||'') || a.mod.localeCompare(b.mod) || (a.color||'').localeCompare(b.color||'') || (a.talla||'').localeCompare(b.talla||''));
     }
     const set=new Set([ ...Object.keys(ex), ...COUNTS.keys() ]);
-    set.forEach(mod=>{ const theo=Number(ex[mod]||0); const scan=Number(COUNTS.get(mod)||0); rows.push({ area:'', mod, theo, scan, diff:scan-theo }); });
-    return rows.sort((a,b)=>a.mod.localeCompare(b.mod));
+    set.forEach(vkey=>{
+      const {mod,color,talla}=splitKey(vkey);
+      if(modF && !mod.toUpperCase().includes(modF)) return;
+      if(colF && !(color||'').toUpperCase().includes(colF)) return;
+      if(talF && !(talla||'').toUpperCase().includes(talF)) return;
+      const theo=Number(ex[vkey]||0); const scan=Number(COUNTS.get(vkey)||0);
+      rows.push({ area:'', mod, color, talla, theo, scan, diff:scan-theo });
+    });
+    return rows.sort((a,b)=>a.mod.localeCompare(b.mod) || (a.color||'').localeCompare(b.color||'') || (a.talla||'').localeCompare(b.talla||''));
   }
-  
+
   async function loadAggregatesByArea(){
     if(!FOLIO_ID){ AGG_BY_AREA=new Map(); return; }
     AGG_BY_AREA=new Map();
     const folio = db.collection('folios').doc(FOLIO_ID).collection('scans');
-    const page = 1000; // pagina de 1000
-    let q = folio.orderBy('ts').limit(page);
-    let last=null;
+    const page = 1000; let q = folio.orderBy('ts').limit(page); let last=null;
     while(true){
-      const snap = await q.get();
-      if(snap.empty) break;
-      snap.forEach(doc=>{
-        const x=doc.data();
-        const area=(x.area||'').trim();
-        const mod=x.mod; if(!mod) return;
-        if(!AGG_BY_AREA.has(area)) AGG_BY_AREA.set(area,new Map());
-        const m=AGG_BY_AREA.get(area);
-        m.set(mod,(m.get(mod)||0)+1);
-      });
-      if(snap.size < page) break;
-      last = snap.docs[snap.size-1];
-      q = folio.orderBy('ts').startAfter(last).limit(page);
+      const snap = await q.get(); if(snap.empty) break;
+      snap.forEach(doc=>{ const x=doc.data(); const area=(x.area||'').trim(); const vkey=x.vkey||keyOf(x.mod,x.color,x.talla); if(!AGG_BY_AREA.has(area)) AGG_BY_AREA.set(area,new Map()); const m=AGG_BY_AREA.get(area); m.set(vkey,(m.get(vkey)||0)+1); });
+      if(snap.size < page) break; last = snap.docs[snap.size-1]; q = folio.orderBy('ts').startAfter(last).limit(page);
     }
   }
-  
-  function renderReport(){ const byArea=$('#groupMode').value==='area'; const rows=buildReportRows(byArea); $('reportBody').innerHTML = rows.map(r=>`<tr><td>${esc(r.area||'')}</td><td>${esc(r.mod)}</td><td class=\"text-right\">${r.theo}</td><td class=\"text-right\">${r.scan}</td><td class=\"text-right ${r.diff===0?'':(r.diff>0?'text-emerald-600':'text-red-600')}\">${r.diff}</td></tr>`).join(''); }
+  function renderReport(){ const byArea=$('#groupMode').value==='area'; const rows=buildReportRows(byArea); $('reportBody').innerHTML = rows.map(r=>`<tr><td>${esc(r.area||'')}</td><td>${esc(r.mod)}</td><td>${esc(r.color||'')}</td><td>${esc(r.talla||'')}</td><td class=\"text-right\">${r.theo}</td><td class=\"text-right\">${r.scan}</td><td class=\"text-right ${r.diff===0?'':(r.diff>0?'text-emerald-600':'text-red-600')}\">${r.diff}</td></tr>`).join(''); }
+
+  // ===== Consulta de modelo =====
+  on('btnBuscarModelo','click',buscarModelo);
+  async function buscarModelo(){
+    if(!FOLIO_ID) return alert('Sin folio');
+    const mod=($('#qModelo')?.value||'').trim(); const color=($('#qColor')?.value||'').trim(); const talla=($('#qTalla')?.value||'').trim();
+    if(!mod) return alert('Indica modelo');
+    const vkey=keyOf(mod,color,talla);
+    const snap=await db.collection('folios').doc(FOLIO_ID).collection('scans').where('vkey','==',vkey).orderBy('ts','desc').limit(100).get();
+    const rows=[]; snap.forEach(d=>{ const x=d.data(); const dt=x.ts?.toDate?x.ts.toDate():new Date(); rows.push(`<tr><td>${fmt(dt)}</td><td>${esc(x.area||'')}</td><td>${esc(x.pos||'')}</td><td>${esc(x.operador||'')}</td><td>${esc(x.temporada||'')}</td></tr>`); });
+    $('consultaBody').innerHTML = rows.join('') || `<tr><td colspan=5 class='text-center text-gray-500'>Sin resultados</td></tr>`;
+  }
 
   // ===== Inicio =====
-  window.addEventListener('DOMContentLoaded',async()=>{ try{ await ensureXLSX(); }catch(e){ console.error(e); alert('No se pudo cargar XLSX (la red está bloqueando los CDNs).'); } cargarCatalogoStorage(false); });
+  window.addEventListener('DOMContentLoaded',()=>{
+    const folioParam=new URL(location.href).searchParams.get('folio'); if(folioParam) $('joinFolioId').value=folioParam;
+    cargarCatalogoStorage(false);
+  });
 })();
 </script>
 </body>
