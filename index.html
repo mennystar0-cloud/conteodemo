@@ -41,14 +41,13 @@
     <button data-tab="reporte"    class="tab-btn">Reporte</button>
     <button data-tab="consulta"   class="tab-btn">Consulta</button>
     <button data-tab="historial"  class="tab-btn">Historial</button>
-    <button data-tab="ajustes"    class="tab-btn">Ajustes</button>
   </nav>
 
   <!-- Importar catálogo -->
   <section id="tab-importar" class="block">
     <div class="card">
       <h2 class="font-semibold mb-2">Catálogo maestro (Storage)</h2>
-      <p class="text-sm text-gray-600">Lee <code id="pathHint">static/catalogo-master.xlsx</code> de tu bucket. Columnas esperadas: <code>CODIGO_BARRA</code>, <code>MOD</code>, <code>COLOR</code>, <code>TALLA</code>.</p>
+      <p class="text-sm text-gray-600">Lee <code>static/catalogo-master.xlsx</code> de tu bucket. Columnas esperadas: <code>CODIGO_BARRA</code>, <code>MOD</code>, <code>COLOR</code>, <code>TALLA</code>.</p>
       <div class="flex flex-wrap gap-2 mt-2 items-center">
         <button id="btnRecargarCloud" class="btn bg-blue-600 text-white">Recargar catálogo</button>
         <button id="btnForzarURL" class="btn bg-amber-500 text-white">Forzar URL única</button>
@@ -210,37 +209,6 @@
     </div>
   </section>
 
-  <!-- Ajustes -->
-  <section id="tab-ajustes" class="hidden">
-    <div class="card">
-      <h2 class="font-semibold mb-2">Ajustes</h2>
-      <div class="grid md:grid-cols-2 gap-4">
-        <div class="space-y-2">
-          <label class="text-sm">Ruta del catálogo en Storage (relative path)</label>
-          <input id="cfgCatalogPath" class="border p-2 rounded w-full" placeholder="static/catalogo-master.xlsx" />
-          <div class="flex items-center gap-2 mt-2">
-            <input type="checkbox" id="cfgBeep" class="scale-125"> <label for="cfgBeep">Beep al detectar</label>
-          </div>
-          <div class="flex items-center gap-2">
-            <input type="checkbox" id="cfgVibrate" class="scale-125"> <label for="cfgVibrate">Vibrar al detectar</label>
-          </div>
-          <div class="flex items-center gap-2">
-            <input type="checkbox" id="cfgRememberCam" class="scale-125"> <label for="cfgRememberCam">Recordar cámara seleccionada</label>
-          </div>
-          <button id="btnGuardarCfg" class="btn bg-emerald-600 text-white mt-2">Guardar ajustes</button>
-        </div>
-        <div class="text-sm text-gray-600">
-          <p><b>Consejos:</b></p>
-          <ul class="list-disc pl-5 space-y-1">
-            <li>Si los nombres de cámaras salen vacíos, pulsa <em>Refrescar cámaras</em> para que el navegador solicite permiso y revele las etiquetas.</li>
-            <li>El beep usa WebAudio (no requiere archivos). La vibración depende del dispositivo.</li>
-            <li>Los ajustes se guardan en este navegador (localStorage).</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-  </section>
-
   <!-- Historial -->
   <section id="tab-historial" class="hidden">
     <div class="card">
@@ -281,11 +249,6 @@
   const storage=firebase.storage();
   db.enablePersistence().catch(()=>{});
 
-  // ===== Settings (persisten en localStorage) =====
-  const DEFAULTS = { catalogPath: 'static/catalogo-master.xlsx', beep:true, vibrate:true, rememberCam:true };
-  let SETTINGS = (()=>{ try{ return {...DEFAULTS, ...(JSON.parse(localStorage.getItem('settings')||'{}'))}; }catch{ return {...DEFAULTS}; } })();
-  function saveSettings(){ try{ localStorage.setItem('settings', JSON.stringify(SETTINGS)); }catch{} }
-
   // ===== Helpers =====
   const $=id=>document.getElementById(id);
   const on=(id,ev,fn)=>{const n=$(id); if(n) n.addEventListener(ev,fn);};
@@ -295,36 +258,36 @@
   const keyOf=(mod,color,talla)=>`${(mod||'').trim()}|${(color||'').trim()}|${(talla||'').trim()}`;
   const splitKey=k=>{const [mod,color,talla]=String(k||'').split('|'); return {mod,color,talla};};
   function loadScript(src){ return new Promise((res,rej)=>{const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=()=>rej(new Error('No se pudo cargar '+src)); document.head.appendChild(s);}); }
-  async function ensureXLSX(){ if(window.XLSX) return; const cdns=[
-    'https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js',
-    'https://unpkg.com/xlsx@0.19.3/dist/xlsx.full.min.js',
-    'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.19.3/xlsx.full.min.js'
-  ]; for(const u of cdns){ try{ await loadScript(u); if(window.XLSX) return; }catch(e){} } throw new Error('XLSX no disponible'); }
+  async function ensureXLSX(){
+    if(window.XLSX) return;
+    // 1) Intenta primero cargar desde TU Storage con URL firmada (getDownloadURL)
+    try{
+      const ref = firebase.storage().ref('static/xlsx.full.min.js');
+      const url = await ref.getDownloadURL();
+      await loadScript(url + (url.includes('?')?'&':'?') + 'v=' + Date.now());
+      if(window.XLSX) return;
+      console.warn('XLSX desde Storage no disponible');
+    }catch(e){ console.warn('XLSX desde Storage falló:', e && e.message ? e.message : e); }
+    // 2) Fallback a CDNs conocidos
+    const cdns=[
+      'https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js',
+      'https://unpkg.com/xlsx@0.19.3/dist/xlsx.full.min.js',
+      'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.19.3/xlsx.full.min.js'
+    ];
+    for(const u of cdns){
+      try{ await loadScript(u); if(window.XLSX) return; }catch(e){}
+    }
+    throw new Error('XLSX no disponible');
+  }
 
   // Tabs
-  function showTab(name){ ['importar','existencias','folio','escanear','reporte','consulta','ajustes','historial'].forEach(t=>{ const el=$('tab-'+t); if(!el) return; el.classList.toggle('hidden',t!==name); el.classList.toggle('block',t===name); }); }
+  function showTab(name){ ['importar','existencias','folio','escanear','reporte','consulta','historial'].forEach(t=>{ const el=$('tab-'+t); if(!el) return; el.classList.toggle('hidden',t!==name); el.classList.toggle('block',t===name); }); }
   window.addEventListener('DOMContentLoaded',()=>{
     const tabs=document.querySelectorAll('#tabs [data-tab]');
     tabs.forEach(btn=>btn.addEventListener('click',()=>{ tabs.forEach(b=>b.classList.remove('border-blue-600','text-blue-600')); btn.classList.add('border-blue-600','text-blue-600'); showTab(btn.dataset.tab); }));
     showTab('importar');
-    // Restaurar persistentes de escaneo
+    // Restaurar persistentes
     ['opName','almacen','temporada','scanArea','scanPos','scanOperador','scanTemporada'].forEach(id=>{ const el=$(id); if(!el) return; const v=localStorage.getItem(id); if(v!==null) el.value=v; el.addEventListener('change',e=>localStorage.setItem(id,e.target.value)); el.addEventListener('input',e=>localStorage.setItem(id,e.target.value)); });
-    // Cargar ajustes
-    $('cfgCatalogPath').value = SETTINGS.catalogPath;
-    $('cfgBeep').checked = !!SETTINGS.beep;
-    $('cfgVibrate').checked = !!SETTINGS.vibrate;
-    $('cfgRememberCam').checked = !!SETTINGS.rememberCam;
-    $('pathHint').textContent = SETTINGS.catalogPath;
-  });
-
-  on('btnGuardarCfg','click',()=>{
-    SETTINGS.catalogPath = ($('#cfgCatalogPath')?.value||DEFAULTS.catalogPath).trim()||DEFAULTS.catalogPath;
-    SETTINGS.beep = !!$('#cfgBeep')?.checked;
-    SETTINGS.vibrate = !!$('#cfgVibrate')?.checked;
-    SETTINGS.rememberCam = !!$('#cfgRememberCam')?.checked;
-    saveSettings();
-    $('pathHint').textContent = SETTINGS.catalogPath;
-    alert('Ajustes guardados');
   });
 
   // ===== Catálogo =====
@@ -355,7 +318,7 @@
     try{
       await ensureXLSX();
       $('importStatus').textContent='Descargando…';
-      const url=await storage.ref(SETTINGS.catalogPath).getDownloadURL();
+      const url=await storage.ref('static/catalogo-master.xlsx').getDownloadURL();
       const finalUrl = force ? `${url}${url.includes('?')?'&':'?'}v=${Date.now()}` : url;
       const resp=await fetch(finalUrl,{cache:'no-store'});
       if(!resp.ok) throw new Error('HTTP '+resp.status);
@@ -464,44 +427,26 @@
   function toEAN13FromGTIN14(gt){if(!/^\d{14}$/.test(gt)) return null; const b=gt.slice(1,13); return b+computeEAN13CheckDigit(b)}
   function normalizeBarcode(raw){const s=String(raw).trim(); if(/^\d{13}$/.test(s)){const cd=computeEAN13CheckDigit(s.slice(0,12)); return {ean13:s.slice(0,12)+cd};} if(/^\d{12}$/.test(s)) return {ean13:'0'+s}; if(/^\d{14}$/.test(s)) return {ean13:toEAN13FromGTIN14(s)}; return {raw:s};}
 
-  // ===== Beep/Vibrar =====
-  let audioCtx=null; function beep(){ if(!SETTINGS.beep) return; try{ audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)(); const o=audioCtx.createOscillator(), g=audioCtx.createGain(); o.type='sine'; o.frequency.value=880; o.connect(g); g.connect(audioCtx.destination); g.gain.setValueAtTime(0.0001,audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.2,audioCtx.currentTime+0.01); o.start(); g.gain.exponentialRampToValueAtTime(0.0001,audioCtx.currentTime+0.12); o.stop(audioCtx.currentTime+0.13);}catch{} }
-  function vibrate(){ if(SETTINGS.vibrate && navigator.vibrate) navigator.vibrate(60); }
-
-  // ===== Cámara =====
-  async function ensureCamAccess(){
-    const list=await navigator.mediaDevices.enumerateDevices();
-    if(list.some(d=>d.kind==='videoinput' && d.label)) return;
-    try{ const s=await navigator.mediaDevices.getUserMedia({video:true}); s.getTracks().forEach(t=>t.stop()); }catch{}
-  }
-  async function refreshCams(){
-    await ensureCamAccess();
-    const list=await navigator.mediaDevices.enumerateDevices();
-    const cams=list.filter(d=>d.kind==='videoinput');
-    const sel=$('cameraSelect'); sel.innerHTML=cams.map(d=>`<option value="${d.deviceId}">${d.label||('Cam '+d.deviceId.slice(-4))}</option>`).join('');
-    const saved=SETTINGS.rememberCam ? localStorage.getItem('cameraDeviceId') : null;
-    if(saved && cams.some(c=>c.deviceId===saved)) sel.value=saved;
-  }
-  on('btnRefreshCam','click',refreshCams);
-  on('cameraSelect','change',e=>{ if(SETTINGS.rememberCam) localStorage.setItem('cameraDeviceId', e.target.value); });
-
+  // ===== Escáner =====
+  let scanning=false; let activeTrack=null; let TORCH=false;
+  on('btnRefreshCam','click',async()=>{ const list=await navigator.mediaDevices.enumerateDevices(); const cams=list.filter(d=>d.kind==='videoinput'); $('cameraSelect').innerHTML=cams.map(d=>`<option value="${d.deviceId}">${d.label||('Cam '+d.deviceId.slice(-4))}</option>`).join(''); });
   on('btnStart','click',startScanner);
   on('btnStop','click',stopScanner);
-  on('btnTorch','click',async()=>{ try{ const v=document.querySelector('#interactive video'); const track=v?.srcObject?.getVideoTracks?.()[0]; await track.applyConstraints({advanced:[{torch:true}]}); }catch{ alert('Linterna no soportada'); }});
+  on('btnTorch','click',async()=>{ try{ activeTrack = activeTrack || document.querySelector('#interactive video')?.srcObject?.getVideoTracks?.()[0]; await activeTrack.applyConstraints({advanced:[{torch: !(TORCH=!TORCH)}]}); }catch{ alert('Linterna no soportada'); }});
   on('manualCode','keydown',e=>{ if(e.key==='Enter'){ const v=e.currentTarget.value.trim(); if(v) handleBarcode(v); e.currentTarget.value=''; }});
 
-  let scanning=false; let lastDetect=0;
   async function startScanner(){
     if(scanning) return; if(!window.Quagga) return alert('Quagga no disponible');
-    scanning=true; await refreshCams();
-    const devId = SETTINGS.rememberCam ? (localStorage.getItem('cameraDeviceId')||$('cameraSelect').value||undefined) : ($('cameraSelect').value||undefined);
+    scanning=true;
+    const devId=$('cameraSelect').value || undefined;
     try{
       await Quagga.init({ inputStream:{ name:'Live', type:'LiveStream', target: document.querySelector('#interactive'), constraints: devId? {deviceId:devId}:{ facingMode:'environment'} }, decoder:{ readers:['ean_reader','ean_8_reader','upc_reader','upc_e_reader','code_128_reader'] }, locate:true });
       Quagga.start();
-      Quagga.onDetected(res=>{ const now=Date.now(); if(now-lastDetect<400) return; lastDetect=now; const code=(res?.codeResult?.code||'').trim(); if(code) handleBarcode(code); });
+      setTimeout(()=>{ try{ const v=document.querySelector('#interactive video'); activeTrack=v?.srcObject?.getVideoTracks?.()[0]; }catch{} },300);
+      Quagga.onDetected(res=>{ const code=(res?.codeResult?.code||'').trim(); if(code) handleBarcode(code); });
     }catch(e){ console.error(e); scanning=false; alert('No se pudo iniciar cámara'); }
   }
-  function stopScanner(){ try{ Quagga.stop(); }catch{} scanning=false; }
+  function stopScanner(){ try{ Quagga.stop(); }catch{} scanning=false; activeTrack=null; TORCH=false; }
 
   async function handleBarcode(code){
     if(!FOLIO_ID) return alert('Sin folio'); if(CATALOGO.byBarcode.size===0) return alert('Catálogo no cargado');
@@ -512,7 +457,6 @@
     const operador  = ($('#scanOperador')?.value||$('#opName')?.value||'').trim();
     const temporada = $('#scanTemporada')?.value||FOLIO_DOC?.temporada||'TODAS';
     await registrarScan(item, code, {area,pos,operador,temporada});
-    beep(); vibrate();
     $('lastItem').textContent = `✔ ${item.mod} ${item.color||''} ${item.talla||''} (${key}) — ${area}${pos?(' · '+pos):''}`;
   }
   async function registrarScan(item, code, meta){
