@@ -7,9 +7,9 @@
   <title>Conteo Cíclico CKLASS</title>
   <!-- UI -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Scanner / XLSX auto-hospedados (evita bloqueos de CDNs) -->
-  <script src="https://firebasestorage.googleapis.com/v0/b/cklass-conteo-ec4f5.appspot.com/o/static%2Fquagga.min.js?alt=media"></script>
-  <script src="https://firebasestorage.googleapis.com/v0/b/cklass-conteo-ec4f5.appspot.com/o/static%2Fxlsx.full.min.js?alt=media"></script>
+  <!-- Scanner y XLSX auto-hospedados en tu Storage -->
+  <script src="https://firebasestorage.googleapis.com/v0/b/cklass-conteo-ec4f5.firebasestorage.app/o/static%2Fquagga.min.js?alt=media"></script>
+  <script src="https://firebasestorage.googleapis.com/v0/b/cklass-conteo-ec4f5.firebasestorage.app/o/static%2Fxlsx.full.min.js?alt=media"></script>
   <!-- Firebase compat (sin módulos) -->
   <script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore-compat.js"></script>
@@ -20,6 +20,7 @@
     .card{background:#fff;padding:1rem;border-radius:.75rem;box-shadow:0 1px 3px rgba(0,0,0,.1)}
     .cam{height:45vh;max-height:400px;background:#000;overflow:hidden;border-radius:1rem}
     th,td{padding:.35rem .5rem;border-bottom:1px solid #eee}
+    .badge{border-radius:.5rem;padding:.1rem .5rem;font-size:.75rem}
   </style>
 </head>
 <body class="bg-gray-50 text-gray-900">
@@ -29,25 +30,27 @@
       <h1 class="text-xl font-bold">Conteo Cíclico — Catálogo + Existencias + Escaneo</h1>
       <p class="text-sm text-gray-600">Configuración en PC, escaneo en móviles por folio.</p>
     </div>
-    <div class="text-sm text-gray-600"><span id="envInfo" class="px-2 py-1 rounded bg-gray-100">Sin folio</span></div>
+    <div class="text-sm text-gray-600">
+      <span id="envInfo" class="badge bg-gray-100">Sin folio</span>
+    </div>
   </header>
 
   <!-- Tabs -->
   <nav class="flex flex-wrap gap-2 mb-4" id="tabs">
-    <button data-tab="importar"   class="tab-btn border-blue-600 text-blue-600">Importar</button>
+    <button data-tab="importar" class="tab-btn border-blue-600 text-blue-600">Importar</button>
     <button data-tab="existencias" class="tab-btn">Existencias</button>
-    <button data-tab="folio"      class="tab-btn">Folio</button>
-    <button data-tab="escanear"   class="tab-btn">Escanear</button>
-    <button data-tab="reporte"    class="tab-btn">Reporte</button>
-    <button data-tab="consulta"   class="tab-btn">Consulta</button>
-    <button data-tab="historial"  class="tab-btn">Historial</button>
+    <button data-tab="folio" class="tab-btn">Folio</button>
+    <button data-tab="escanear" class="tab-btn">Escanear</button>
+    <button data-tab="reporte" class="tab-btn">Reporte</button>
+    <button data-tab="consulta" class="tab-btn">Consulta</button>
+    <button data-tab="historial" class="tab-btn">Historial</button>
   </nav>
 
   <!-- Importar catálogo -->
   <section id="tab-importar" class="block">
     <div class="card">
       <h2 class="font-semibold mb-2">Catálogo maestro (Storage)</h2>
-      <p class="text-sm text-gray-600">Lee <code>static/catalogo-master.xlsx</code> de tu bucket. Columnas esperadas: <code>CODIGO_BARRA</code>, <code>MOD</code>, <code>COLOR</code>, <code>TALLA</code>.</p>
+      <p class="text-sm text-gray-600">Lee <code>/static/catalogo-master.xlsx</code> desde tu bucket. Columnas: <code>CODIGO_BARRA</code>, <code>MOD</code>, <code>COLOR</code>, <code>TALLA</code>.</p>
       <div class="flex flex-wrap gap-2 mt-2 items-center">
         <button id="btnRecargarCloud" class="btn bg-blue-600 text-white">Recargar catálogo</button>
         <button id="btnForzarURL" class="btn bg-amber-500 text-white">Forzar URL única</button>
@@ -79,21 +82,21 @@
       <h2 class="font-semibold mb-2">Folio</h2>
       <div class="grid md:grid-cols-2 gap-4">
         <div class="space-y-2">
-          <input id="folioName" class="border p-2 rounded w-full" placeholder="Nombre del folio (opcional)" />
+          <input id="folioName" class="border p-2 rounded w-full" placeholder="Nombre del folio" />
+          <input id="operador" class="border p-2 rounded w-full" placeholder="¿Quién realiza el cíclico?" />
           <div class="grid grid-cols-2 gap-2">
-            <input id="opName"   class="border p-2 rounded" placeholder="Operador / Responsable" />
-            <input id="almacen"  class="border p-2 rounded" placeholder="Tipo de almacén" />
+            <input id="almacenTipo" class="border p-2 rounded" placeholder="Tipo de almacén (Sucursal / CEDIS / Bodega)" />
+            <select id="temporada" class="border p-2 rounded">
+              <option value="TODAS">Temporada: TODAS</option>
+              <option value="LINEA">LÍNEA</option>
+              <option value="OFERTA">OFERTA</option>
+              <option value="SALDO">SALDO</option>
+              <option value="PASO">PASO</option>
+            </select>
           </div>
-          <select id="temporada" class="border p-2 rounded w-full">
-            <option value="TODAS">Temporada: TODAS</option>
-            <option value="LINEA">LÍNEA</option>
-            <option value="OFERTA">OFERTA</option>
-            <option value="SALDO">SALDO</option>
-            <option value="PASO">PASO</option>
-          </select>
           <div class="mt-2 flex gap-2">
-            <button id="btnCrearFolio" class="btn bg-green-600 text-white">Crear folio (ID automático)</button>
-            <button id="btnCerrarFolio" class="btn bg-gray-200">Cerrar folio</button>
+            <button id="btnCrearFolio" class="btn bg-green-600 text-white">Crear folio</button>
+            <button id="btnCerrarFolio" class="btn bg-gray-200" title="Cierra el folio actual">Cerrar folio</button>
           </div>
         </div>
         <div class="space-y-2">
@@ -236,12 +239,12 @@
 
 <script>
 (function(){
-  // ===== Firebase =====
+  // ===== Firebase init =====
   const firebaseConfig = {
     apiKey: "AIzaSyBe23iKn2bl0YMxsXUiTN5SkUrD9Vhvfo",
     authDomain: "cklass-conteo-ec4f5.firebaseapp.com",
     projectId: "cklass-conteo-ec4f5",
-    storageBucket: "cklass-conteo-ec4f5.appspot.com",
+    storageBucket: "cklass-conteo-ec4f5.firebasestorage.app",
     appId: "1:148726861241:web:592f683e941d13d2829e68"
   };
   firebase.initializeApp(firebaseConfig);
@@ -257,53 +260,63 @@
   const canon = s => (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase();
   const keyOf=(mod,color,talla)=>`${(mod||'').trim()}|${(color||'').trim()}|${(talla||'').trim()}`;
   const splitKey=k=>{const [mod,color,talla]=String(k||'').split('|'); return {mod,color,talla};};
-  function loadScript(src){ return new Promise((res,rej)=>{const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=()=>rej(new Error('No se pudo cargar '+src)); document.head.appendChild(s);}); }
-  async function ensureXLSX(){
-    if(window.XLSX) return;
-    // 1) Intenta primero cargar desde TU Storage con URL firmada (getDownloadURL)
-    try{
-      const ref = firebase.storage().ref('static/xlsx.full.min.js');
-      const url = await ref.getDownloadURL();
-      await loadScript(url + (url.includes('?')?'&':'?') + 'v=' + Date.now());
-      if(window.XLSX) return;
-      console.warn('XLSX desde Storage no disponible');
-    }catch(e){ console.warn('XLSX desde Storage falló:', e && e.message ? e.message : e); }
-    // 2) Fallback a CDNs conocidos
-    const cdns=[
-      'https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js',
-      'https://unpkg.com/xlsx@0.19.3/dist/xlsx.full.min.js',
-      'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.19.3/xlsx.full.min.js'
-    ];
-    for(const u of cdns){
-      try{ await loadScript(u); if(window.XLSX) return; }catch(e){}
-    }
-    throw new Error('XLSX no disponible');
-  }
 
-  // Tabs
-  function showTab(name){ ['importar','existencias','folio','escanear','reporte','consulta','historial'].forEach(t=>{ const el=$('tab-'+t); if(!el) return; el.classList.toggle('hidden',t!==name); el.classList.toggle('block',t===name); }); }
+  // ===== Tabs =====
+  function showTab(name){
+    ['importar','existencias','folio','escanear','reporte','consulta','historial'].forEach(t=>{
+      const el=$('tab-'+t); if(!el) return; el.classList.toggle('hidden',t!==name); el.classList.toggle('block',t===name);
+    });
+  }
   window.addEventListener('DOMContentLoaded',()=>{
     const tabs=document.querySelectorAll('#tabs [data-tab]');
-    tabs.forEach(btn=>btn.addEventListener('click',()=>{ tabs.forEach(b=>b.classList.remove('border-blue-600','text-blue-600')); btn.classList.add('border-blue-600','text-blue-600'); showTab(btn.dataset.tab); }));
+    tabs.forEach(btn=>btn.addEventListener('click',()=>{
+      tabs.forEach(b=>b.classList.remove('border-blue-600','text-blue-600'));
+      btn.classList.add('border-blue-600','text-blue-600');
+      showTab(btn.dataset.tab);
+    }));
     showTab('importar');
-    // Restaurar persistentes
-    ['opName','almacen','temporada','scanArea','scanPos','scanOperador','scanTemporada'].forEach(id=>{ const el=$(id); if(!el) return; const v=localStorage.getItem(id); if(v!==null) el.value=v; el.addEventListener('change',e=>localStorage.setItem(id,e.target.value)); el.addEventListener('input',e=>localStorage.setItem(id,e.target.value)); });
   });
 
-  // ===== Catálogo =====
+  // ===== Catálogo (Storage) =====
+  const GS_PATH = 'gs://cklass-conteo-ec4f5.firebasestorage.app/static/catalogo-master.xlsx';
   let CATALOGO = { byBarcode:new Map(), byVariant:new Map() };
+
+  on('btnPlantillaCSV','click',()=>{
+    const csv = 'MODELO,COLOR,TALLA,CANTIDAD\n587-12,NEGRO,250,3\n';
+    const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='plantilla_existencias.csv'; a.click(); URL.revokeObjectURL(a.href);
+  });
+
+  async function cargarCatalogoStorage(force=false){
+    try{
+      $('importStatus').textContent='Descargando…';
+      const ref = storage.refFromURL(GS_PATH);
+      const url = await ref.getDownloadURL();
+      const finalUrl = force ? `${url}${url.includes('?')?'&':'?'}v=${Date.now()}` : url;
+      const resp=await fetch(finalUrl,{cache:'no-store'});
+      if(!resp.ok) throw new Error('HTTP '+resp.status);
+      const ab=await resp.arrayBuffer();
+      if(!window.XLSX) throw new Error('XLSX no cargó');
+      const wb=XLSX.read(ab,{type:'array'});
+      const sh=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(sh,{header:1,defval:''});
+      CATALOGO = buildCatalog(rows);
+      $('importStatus').textContent=`Catálogo OK: ${rows.length-1} filas (hoja: ${wb.SheetNames[0]})`;
+    }catch(e){ console.error(e); $('importStatus').textContent='❌ '+(e.message||e); }
+  }
+  on('btnRecargarCloud','click',()=>cargarCatalogoStorage(false));
+  on('btnForzarURL','click',()=>cargarCatalogoStorage(true));
+
   function buildCatalog(rows){
     const res={ byBarcode:new Map(), byVariant:new Map() };
     const H=(rows[0]||[]).map(canon);
-    const idx=names=>names.map(n=>H.indexOf(canon(n))).find(i=>i>=0);
-    const iCode=idx(['CODIGO_BARRA','CODIGO','EAN','UPC']);
-    const iMod =idx(['MOD','MODELO','SKU']);
-    const iColor=idx(['COLOR']);
-    const iTalla=idx(['TALLA']);
+    const iCode=H.indexOf('CODIGO_BARRA');
+    const iMod =H.indexOf('MOD');
+    const iColor=H.indexOf('COLOR');
+    const iTalla=H.indexOf('TALLA');
     for(let r=1;r<rows.length;r++){
       const row=rows[r]||[];
       const code=String(row[iCode]||'').trim();
-      const mod=String(row[iMod]||'').trim();
+      const mod =String(row[iMod]||'').trim();
       const color=String(row[iColor]||'').trim();
       const talla=String(row[iTalla]||'').trim();
       if(!code||!mod) continue;
@@ -314,58 +327,32 @@
     }
     return res;
   }
-  async function cargarCatalogoStorage(force=false){
-    try{
-      await ensureXLSX();
-      $('importStatus').textContent='Descargando…';
-      const url=await storage.ref('static/catalogo-master.xlsx').getDownloadURL();
-      const finalUrl = force ? `${url}${url.includes('?')?'&':'?'}v=${Date.now()}` : url;
-      const resp=await fetch(finalUrl,{cache:'no-store'});
-      if(!resp.ok) throw new Error('HTTP '+resp.status);
-      const ab=await resp.arrayBuffer();
-      const wb=XLSX.read(ab,{type:'array'});
-      const sh=wb.Sheets[wb.SheetNames[0]];
-      const rows=XLSX.utils.sheet_to_json(sh,{header:1,defval:''});
-      CATALOGO = buildCatalog(rows);
-      $('importStatus').textContent=`Catálogo OK: ${rows.length-1} filas (hoja: ${wb.SheetNames[0]})`;
-    }catch(e){ console.error(e); $('importStatus').textContent='❌ '+(e.message||e); }
-  }
-  on('btnRecargarCloud','click',()=>cargarCatalogoStorage(false));
-  on('btnForzarURL','click',()=>cargarCatalogoStorage(true));
-  on('btnPlantillaCSV','click',()=>{ const csv='MODELO,COLOR,TALLA,CANTIDAD\n587-12,NEGRO,250,3\n'; const blob=new Blob([csv],{type:'text/csv'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='plantilla_existencias.csv'; a.click(); URL.revokeObjectURL(a.href); });
 
-  // ===== Folio (ID incremental) =====
-  let FOLIO_ID=null; let FOLIO_DOC=null; let COUNTS=new Map(); let AGG_BY_AREA=new Map();
-  async function nextFolioNumber(){
-    const ref=db.collection('meta').doc('counters');
-    const n = await db.runTransaction(async tx=>{ const snap=await tx.get(ref); const cur = snap.exists ? (snap.data().nextFolio||1) : 1; tx.set(ref,{nextFolio:cur+1},{merge:true}); return cur; });
-    return n;
-  }
+  // ===== Folio =====
+  let FOLIO_ID=null; let FOLIO_DOC=null; let COUNTS=new Map();
+  let scansUnsub=null, countsUnsub=null;
+
   async function crearFolio(){
-    try{
-      const name=($('#folioName')?.value||'Cíclico').trim()||'Cíclico';
-      const operador=($('#opName')?.value||'').trim();
-      const almacen=($('#almacen')?.value||'').trim();
-      const temporada=$('#temporada')?.value||'TODAS';
-      const num = await nextFolioNumber();
-      const id  = String(num).padStart(6,'0');
-      const ref = db.collection('folios').doc(id);
-      await ref.set({ id, number:num, name, operador, almacen, temporada, state:'open', existenciasMap:{}, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
-      await activarFolio(id);
-    }catch(e){ console.error(e); alert('No se pudo crear folio'); }
+    const name=($('#folioName').value||'Cíclico').trim();
+    const operador=($('#operador').value||$('#scanOperador').value||'').trim();
+    const almacenTipo=($('#almacenTipo').value||'').trim();
+    const temporada=$('#temporada').value||'TODAS';
+    if(!operador) return alert('Indica quién realiza el cíclico');
+    const ref=db.collection('folios').doc();
+    await ref.set({ name, createdBy:operador, almacenTipo, temporada, state:'open', existenciasMap:{}, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+    await activarFolio(ref.id);
   }
   async function activarFolio(id){
-    const snap=await db.collection('folios').doc(id).get();
-    if(!snap.exists) return alert('Folio no encontrado');
-    FOLIO_ID=id; FOLIO_DOC=snap.data();
+    FOLIO_ID=id; if(countsUnsub) countsUnsub(); if(scansUnsub) scansUnsub();
+    const snap=await db.collection('folios').doc(id).get(); if(!snap.exists) return alert('Folio no encontrado');
+    FOLIO_DOC=snap.data();
+    $('folioStatus').textContent=`Folio: ${id} — ${FOLIO_DOC.name} — Operador: ${FOLIO_DOC.createdBy}`;
+    $('folioFecha').textContent = FOLIO_DOC.createdAt?.toDate ? fmt(FOLIO_DOC.createdAt.toDate()) : '—';
     $('envInfo').textContent = `Folio ${id}`;
-    $('joinFolioId').value=id;
-    const dt=FOLIO_DOC.createdAt?.toDate ? FOLIO_DOC.createdAt.toDate() : new Date();
-    $('folioFecha').textContent = fmt(dt);
-    $('folioStatus').innerHTML = `Folio: <b>${id}</b> — ${esc(FOLIO_DOC.name||'')} · Operador: ${esc(FOLIO_DOC.operador||'')} · Almacén: ${esc(FOLIO_DOC.almacen||'')} · Temporada: ${esc(FOLIO_DOC.temporada||'')}`;
+    $('joinFolioId').value=id; $('#scanOperador').value = FOLIO_DOC.createdBy || $('#scanOperador').value;
     subscribeCounts(); subscribeScans();
   }
-  async function unirseFolio(){ const id=($('#joinFolioId')?.value||'').trim(); if(!id) return; await activarFolio(id); }
+  async function unirseFolio(){ const id=($('#joinFolioId').value||'').trim(); if(!id) return; await activarFolio(id); }
   on('btnCrearFolio','click',crearFolio);
   on('btnUnirseFolio','click',unirseFolio);
   on('btnCopiarLink','click',()=>{ if(!FOLIO_ID) return; const u=new URL(location.href); u.searchParams.set('folio',FOLIO_ID); navigator.clipboard.writeText(u.toString()); alert('Link copiado'); });
@@ -382,6 +369,7 @@
       $('existStatus').textContent=`Cargadas ${Object.keys(map).length} variantes`;
     }catch(e){ console.error(e); $('existStatus').textContent='❌ '+(e.message||e); }
   });
+
   function parseExistencias(text){
     const out={}, bad=[];
     const lines=(text||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
@@ -391,7 +379,7 @@
       if(!m){
         const p = ln.split(',').map(s=>s.trim());
         if(p.length>=4 && /^\d+$/.test(p[p.length-1])){
-          const mod=p[0], color=p[1], talla=p[2], qty=parseInt(p[p.length-1],10);
+          const mod=p[0], color=p[1], talla=p[2], qty=parseInt(p[p.length-1]);
           const k=keyOf(mod,color,talla); out[k]=(out[k]||0)+qty; continue;
         }
       } else {
@@ -419,8 +407,19 @@
   }
 
   // ===== Realtime =====
-  function subscribeCounts(){ if(!FOLIO_ID) return; COUNTS.clear(); db.collection('folios').doc(FOLIO_ID).collection('counts').onSnapshot(snap=>{ snap.forEach(d=>COUNTS.set(d.id, d.data().qty||0)); }); }
-  function subscribeScans(){ if(!FOLIO_ID) return; db.collection('folios').doc(FOLIO_ID).collection('scans').orderBy('ts','desc').limit(500).onSnapshot(snap=>{ const rows=[]; snap.forEach(d=>{const x=d.data(); const dt=x.ts?.toDate?x.ts.toDate():new Date(); rows.push(`<tr><td>${fmt(dt)}</td><td>${esc(x.area||'')}</td><td>${esc(x.pos||'')}</td><td>${esc(x.code)}</td><td>${esc(x.mod||'')}</td><td>${esc(x.color||'')}</td><td>${esc(x.talla||'')}</td><td>${esc(x.operador||x.user||'')}</td></tr>`);}); $('historyBody').innerHTML=rows.join(''); }); }
+  function subscribeCounts(){
+    if(countsUnsub) countsUnsub(); COUNTS.clear(); if(!FOLIO_ID) return;
+    countsUnsub = db.collection('folios').doc(FOLIO_ID).collection('counts').onSnapshot(snap=>{
+      snap.forEach(d=>COUNTS.set(d.id, d.data().qty||0));
+    });
+  }
+  function subscribeScans(){
+    if(scansUnsub) scansUnsub(); if(!FOLIO_ID) return;
+    scansUnsub = db.collection('folios').doc(FOLIO_ID).collection('scans').orderBy('ts','desc').limit(500).onSnapshot(snap=>{
+      const rows=[]; snap.forEach(d=>{const x=d.data(); const dt=x.ts?.toDate?x.ts.toDate():new Date(); rows.push(`<tr><td>${fmt(dt)}</td><td>${esc(x.area||'')}</td><td>${esc(x.pos||'')}</td><td>${esc(x.code)}</td><td>${esc(x.mod||'')}</td><td>${esc(x.color||'')}</td><td>${esc(x.talla||'')}</td><td>${esc(x.user||'')}</td></tr>`);});
+      $('historyBody').innerHTML=rows.join('');
+    });
+  }
 
   // ===== GS1 mínima =====
   function computeEAN13CheckDigit(d12){const a=d12.split('').map(Number);let s=0;for(let i=0;i<12;i++) s+=a[i]*(i%2?3:1);return String((10-(s%10))%10)}
@@ -452,11 +451,11 @@
     if(!FOLIO_ID) return alert('Sin folio'); if(CATALOGO.byBarcode.size===0) return alert('Catálogo no cargado');
     const n=normalizeBarcode(code); const key=n.ean13||code; const item = CATALOGO.byBarcode.get(key)||CATALOGO.byBarcode.get(String(code));
     if(!item){ $('lastItem').textContent='No encontrado: '+code; return; }
-    const area = ($('#scanArea')?.value||'').trim();
-    const pos  = ($('#scanPos')?.value||'').trim();
-    const operador  = ($('#scanOperador')?.value||$('#opName')?.value||'').trim();
-    const temporada = $('#scanTemporada')?.value||FOLIO_DOC?.temporada||'TODAS';
-    await registrarScan(item, code, {area,pos,operador,temporada});
+    const area = ($('#scanArea').value||'').trim();
+    const pos  = ($('#scanPos').value||'').trim();
+    const user = ($('#scanOperador').value||FOLIO_DOC?.createdBy||'').trim();
+    const temporada = $('#scanTemporada').value||FOLIO_DOC?.temporada||'TODAS';
+    await registrarScan(item, code, {area,pos,user,temporada});
     $('lastItem').textContent = `✔ ${item.mod} ${item.color||''} ${item.talla||''} (${key}) — ${area}${pos?(' · '+pos):''}`;
   }
   async function registrarScan(item, code, meta){
@@ -464,11 +463,17 @@
     const vkey=item.vkey||keyOf(item.mod,item.color,item.talla);
     await Promise.all([
       folio.collection('counts').doc(vkey).set({ qty: firebase.firestore.FieldValue.increment(1) },{merge:true}),
-      folio.collection('scans').add({ code, mod:item.mod, color:item.color||'', talla:item.talla||'', vkey, area:meta.area, pos:meta.pos, operador:meta.operador, temporada:meta.temporada, ts: firebase.firestore.FieldValue.serverTimestamp() })
+      folio.collection('scans').add({ code, mod:item.mod, color:item.color||'', talla:item.talla||'', vkey, area:meta.area, pos:meta.pos, user:meta.user, temporada:meta.temporada, ts: firebase.firestore.FieldValue.serverTimestamp() })
     ]).catch(e=>{console.error(e); alert('Error registrando');});
   }
 
+  // Persistencia local de área/posición/operador/temporada
+  ['scanArea','scanPos','scanOperador','scanTemporada'].forEach(id=>{
+    const key='cc-'+id; const el=$(id); if(!el) return; const v=localStorage.getItem(key); if(v) el.value=v; el.addEventListener('change',()=>localStorage.setItem(key,el.value));
+  });
+
   // ===== Reporte =====
+  let AGG_BY_AREA = new Map();
   on('btnRefrescarReporte','click', async ()=>{ await loadAggregatesByArea(); renderReport(); });
   on('btnExportarCSV','click',()=>{
     const rows = buildReportRows($('#groupMode').value==='area');
@@ -488,9 +493,9 @@
   function buildReportRows(byArea){
     const ex = (FOLIO_DOC?.existenciasMap)||{};
     const rows=[];
-    const modF = ($('#filtroModelo')?.value||'').trim().toUpperCase();
-    const colF = ($('#filtroColor')?.value||'').trim().toUpperCase();
-    const talF = ($('#filtroTalla')?.value||'').trim().toUpperCase();
+    const modF = ($('#filtroModelo').value||'').trim().toUpperCase();
+    const colF = ($('#filtroColor').value||'').trim().toUpperCase();
+    const talF = ($('#filtroTalla').value||'').trim().toUpperCase();
 
     if(byArea){
       AGG_BY_AREA.forEach((mods, area)=>{
@@ -534,11 +539,12 @@
   on('btnBuscarModelo','click',buscarModelo);
   async function buscarModelo(){
     if(!FOLIO_ID) return alert('Sin folio');
-    const mod=($('#qModelo')?.value||'').trim(); const color=($('#qColor')?.value||'').trim(); const talla=($('#qTalla')?.value||'').trim();
+    const mod=($('#qModelo').value||'').trim(); const color=($('#qColor').value||'').trim(); const talla=($('#qTalla').value||'').trim();
     if(!mod) return alert('Indica modelo');
     const vkey=keyOf(mod,color,talla);
-    const snap=await db.collection('folios').doc(FOLIO_ID).collection('scans').where('vkey','==',vkey).orderBy('ts','desc').limit(100).get();
-    const rows=[]; snap.forEach(d=>{ const x=d.data(); const dt=x.ts?.toDate?x.ts.toDate():new Date(); rows.push(`<tr><td>${fmt(dt)}</td><td>${esc(x.area||'')}</td><td>${esc(x.pos||'')}</td><td>${esc(x.operador||'')}</td><td>${esc(x.temporada||'')}</td></tr>`); });
+    let q=db.collection('folios').doc(FOLIO_ID).collection('scans').where('vkey','==',vkey).orderBy('ts','desc').limit(100);
+    const snap=await q.get();
+    const rows=[]; snap.forEach(d=>{ const x=d.data(); const dt=x.ts?.toDate?x.ts.toDate():new Date(); rows.push(`<tr><td>${fmt(dt)}</td><td>${esc(x.area||'')}</td><td>${esc(x.pos||'')}</td><td>${esc(x.user||'')}</td><td>${esc(x.temporada||'')}</td></tr>`); });
     $('consultaBody').innerHTML = rows.join('') || `<tr><td colspan=5 class='text-center text-gray-500'>Sin resultados</td></tr>`;
   }
 
