@@ -451,25 +451,62 @@
       $('existStatus').textContent=`Cargadas ${Object.keys(map).length} variantes`;
     }catch(e){ console.error(e); $('existStatus').textContent='Error: '+(e.message||e); }
   });
-  function parseExistencias(text){
-    const out={}, bad=[];
-    const lines=(text||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-    for(let i=0;i<lines.length;i++){
-      const ln=lines[i];
-      let m = ln.match(/^([^,]+),\s*([^,\s]+)\s+([\w\.\-]+)\s+(\d+)$/i);
-      if(!m){
-        const p = ln.split(',').map(s=>s.trim());
-        if(p.length>=4 && /^\d+$/.test(p[p.length-1])){
-          const mod=p[0], color=p[1], talla=p[2], qty=parseInt(p[p.length-1],10);
-          const k=keyOf(mod,color,talla); out[k]=(out[k]||0)+qty; continue;
-        }
-      } else {
-        const [,mod,color,talla,qty]=m; const k=keyOf(mod,color,talla); out[k]=(out[k]||0)+parseInt(qty,10); continue;
+ function parseExistencias(text){
+  var out={}, bad=[];
+  var lines=(text||'').split(/\r?\n/).map(function(s){return s.trim();}).filter(Boolean);
+
+  for(var i=0;i<lines.length;i++){
+    var ln=lines[i];
+
+    // A) CSV exacto: MODELO,COLOR,TALLA,CANTIDAD
+    var parts = ln.split(',');
+    if (parts.length === 4) {
+      var mod = parts[0].trim();
+      var color = parts[1].trim();
+      var talla = parts[2].trim();
+      var qty = parseInt(String(parts[3]).trim(), 10);
+      if (mod && color && talla && !isNaN(qty)) {
+        var k = keyOf(mod, color, talla);
+        out[k] = (out[k]||0) + qty;
+        continue;
       }
-      bad.push({line:i+1, text:ln});
     }
-    return {map:out, bad, total:Object.values(out).reduce((a,b)=>a+b,0)};
+
+    // B) Formato: MODELO, COLOR CON ESPACIOS TALLA CANTIDAD
+    if (ln.indexOf(',') >= 0) {
+      var first = ln.indexOf(',');
+      var mod2  = ln.slice(0, first).trim();
+      var rest  = ln.slice(first+1).trim();
+
+      // cantidad es SIEMPRE el último número
+      var mQty = rest.match(/(\d+)\s*$/);
+      if (mQty) {
+        var qty2  = parseInt(mQty[1], 10);
+        var rest2 = rest.slice(0, mQty.index).trim();
+
+        // talla es el ÚLTIMO token antes de la cantidad
+        var mTalla = rest2.match(/([A-Za-z0-9_.-]+)\s*$/);
+        if (mTalla) {
+          var talla2 = mTalla[1];
+          var color2 = rest2.slice(0, rest2.length - mTalla[0].length).trim();
+
+          if (mod2 && color2 && talla2 && !isNaN(qty2)) {
+            var k2 = keyOf(mod2, color2, talla2);
+            out[k2] = (out[k2]||0) + qty2;
+            continue;
+          }
+        }
+      }
+    }
+
+    // si no entró en ninguno, marcar como inválida
+    bad.push({ line: i+1, text: ln });
   }
+
+  var total=0; Object.keys(out).forEach(function(k){ total+=out[k]; });
+  return { map: out, bad: bad, total: total };
+}
+
   function renderExistPreview(res){
     const rows = Object.entries(res.map).slice(0,500).map(([k,qty])=>{ const {mod,color,talla}=splitKey(k); return `<tr><td>${esc(mod)}</td><td>${esc(color)}</td><td>${esc(talla)}</td><td class=\"text-right\">${qty}</td></tr>`; }).join('');
     const bads = res.bad.map(b=>`<li>L${b.line}: ${esc(b.text)}</li>`).join('');
