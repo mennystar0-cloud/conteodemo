@@ -290,7 +290,7 @@
     'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.19.3/xlsx.full.min.js'
   ]; for(const u of cdns){ try{ await loadScript(u); if(window.XLSX) return; }catch(e){} } throw new Error('XLSX no disponible'); }
 
-  // ===== Importar catálogo (Storage con fallback local) =====
+  // ===== Importar catálogo (forzado a LOCAL para evitar CORS) =====
   let CATALOGO = { byBarcode:new Map(), byVariant:new Map() };
   function buildCatalog(rows){
     const res={ byBarcode:new Map(), byVariant:new Map() };
@@ -322,6 +322,7 @@
   ]; for(const u of cdns){ try{ await loadScript(u); if(window.XLSX) return; }catch(e){} } throw new Error('XLSX no disponible'); }
 
   const LOCAL_CATALOG_PATH = 'static/catalogo-master.xlsx';
+  const FORCE_LOCAL = true; // mientras el bucket tenga CORS, usamos solo el archivo local
   async function tryStorage(force){
     const url=await storage.ref('static/catalogo-master.xlsx').getDownloadURL();
     const finalUrl = force ? (url + (url.includes('?')?'&':'?') + 'v=' + Date.now()) : url;
@@ -349,7 +350,17 @@
     try{
       $('importStatus').textContent='Descargando...';
       let data=null; let errS=null;
-      try { data = await tryStorage(force); } catch(e){ errS=e; console.warn('Storage falló:', e?.message||e); }
+      if(!FORCE_LOCAL){
+        try { data = await tryStorage(force); } catch(e){ errS=e; console.warn('Storage falló:', e?.message||e); }
+      }
+      if(!data){
+        try{ data = await tryLocal(force); }
+        catch(e){ console.error('Local falló:', e?.message||e); throw errS||e; }
+      }
+      CATALOGO = buildCatalog(data.rows);
+      $('importStatus').textContent=`Catálogo OK: ${data.rows.length-1} filas (hoja: ${data.sheet}) · Origen: ${data.source}`;
+    }catch(e){ console.error(e); $('importStatus').textContent='Error: '+(e.message||e); }
+  } catch(e){ errS=e; console.warn('Storage falló:', e?.message||e); }
       if(!data){
         try{ data = await tryLocal(force); }catch(e){ console.error('Local falló:', e?.message||e); throw errS||e; }
       }
