@@ -287,9 +287,29 @@
   function loadScript(url){
     return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=url; s.onload=res; s.onerror=()=>rej(new Error('No se pudo cargar: '+url)); document.head.appendChild(s); });
   }
-  async function ensureXLSX(){
-    if(window.XLSX) return;
-    try { await loadScript('static/xlsx.full.min.js?v='+Date.now()); if(window.XLSX) return; } catch(e){}
+  function ensureXLSX(){
+    if(window.XLSX) return Promise.resolve();
+    // 1) intenta local
+    return loadScript('static/xlsx.full.min.js?v='+Date.now())
+      .catch(function(){ return Promise.resolve(); })
+      .then(function(){ if(window.XLSX) return; })
+      .then(function(){
+        // 2) intenta CDN estables (0.18.5)
+        var cdns=[
+          'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
+          'https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js',
+          'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'
+        ];
+        var i=0;
+        function next(){
+          if(window.XLSX) return Promise.resolve();
+          if(i>=cdns.length) return Promise.reject(new Error('XLSX no disponible'));
+          var u=cdns[i++];
+          return loadScript(u).catch(function(){ return next(); });
+        }
+        return next();
+      });
+  } catch(e){}
     const cdns=[
       'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
       'https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js',
@@ -355,13 +375,18 @@
     const rows=XLSX.utils.sheet_to_json(sh,{header:1,defval:''});
     return { rows, sheet: wb.SheetNames[0], source:'local' };
   }
-  async function cargarCatalogo(force){
-    try{
-      $('importStatus').textContent='Descargando...';
-      // Forzado a local mientras CORS del bucket bloquee
-      const data = await tryLocal(!!force);
-      CATALOGO = buildCatalog(data.rows);
-      $('importStatus').textContent=`Catálogo OK: ${data.rows.length-1} filas (hoja: ${data.sheet}) · Origen: ${data.source}`;
+  function cargarCatalogo(force){
+    $('importStatus').textContent='Descargando...';
+    // Forzado a local mientras CORS del bucket bloquee
+    tryLocal(!!force)
+      .then(function(data){
+        return ensureXLSX().then(function(){
+          CATALOGO = buildCatalog(data.rows);
+          $('importStatus').textContent = 'Catálogo OK: ' + (data.rows.length-1) + ' filas (hoja: ' + data.sheet + ') · Origen: ' + data.source;
+        });
+      })
+      .catch(function(e){ console.error(e); $('importStatus').textContent='Error: '+(e && e.message ? e.message : e); });
+  } filas (hoja: ${data.sheet}) · Origen: ${data.source}`;
     }catch(e){ console.error(e); $('importStatus').textContent='Error: '+(e && e.message ? e.message : e); }
   }
       if(!data){
