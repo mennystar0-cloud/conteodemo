@@ -4,13 +4,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Conteo Cíclico CKLASS</title>
+  <title>Conteo Cíclico</title>
   <!-- UI -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Scanner y XLSX auto-hospedados en tu Storage -->
-  <script src="https://firebasestorage.googleapis.com/v0/b/cklass-conteo-ec4f5.firebasestorage.app/o/static%2Fquagga.min.js?alt=media"></script>
-  <script src="https://firebasestorage.googleapis.com/v0/b/cklass-conteo-ec4f5.firebasestorage.app/o/static%2Fxlsx.full.min.js?alt=media"></script>
-  <!-- Firebase compat (sin módulos) -->
+  <!-- Librerías locales (sin CORS). Sube estos archivos a /static de tu repo -->
+  <script src="static/xlsx.full.min.js"></script>
+  <script src="static/quagga.min.js"></script>
+  <!-- Firebase compat -->
   <script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-storage-compat.js"></script>
@@ -50,7 +50,7 @@
   <section id="tab-importar" class="block">
     <div class="card">
       <h2 class="font-semibold mb-2">Catálogo maestro (Storage)</h2>
-      <p class="text-sm text-gray-600">Lee <code>/static/catalogo-master.xlsx</code> desde tu bucket. Columnas: <code>CODIGO_BARRA</code>, <code>MOD</code>, <code>COLOR</code>, <code>TALLA</code>.</p>
+      <p class="text-sm text-gray-600">Lee <code>static/catalogo-master.xlsx</code> desde tu bucket. Columnas: <code>CODIGO_BARRA</code>, <code>MOD</code>, <code>COLOR</code>, <code>TALLA</code>.</p>
       <div class="flex flex-wrap gap-2 mt-2 items-center">
         <button id="btnRecargarCloud" class="btn bg-blue-600 text-white">Recargar catálogo</button>
         <button id="btnForzarURL" class="btn bg-amber-500 text-white">Forzar URL única</button>
@@ -64,7 +64,7 @@
   <section id="tab-existencias" class="hidden">
     <div class="card">
       <h2 class="font-semibold mb-2">Pegar existencias (teórico)</h2>
-      <p class="text-sm text-gray-600">Formato por línea: <code>MODELO,COLOR TALLA CANTIDAD</code> (ej: <code>587-12,NEGRO 250 3</code>) o CSV estricto <code>MODELO,COLOR,TALLA,CANTIDAD</code>.</p>
+      <p class="text-sm text-gray-600">Formato por línea: <code>MODELO,COLOR TALLA CANTIDAD</code> (ej: <code>587-12,NEGRO 250 3</code>) o CSV <code>MODELO,COLOR,TALLA,CANTIDAD</code>.</p>
       <textarea id="existText" rows="8" class="w-full border rounded p-2" placeholder="Ejemplos&#10;587-12,NEGRO 250 3&#10;ABC-01,ROJO 27 2&#10;ABC-01,ROJO,27,2"></textarea>
       <div class="flex flex-wrap gap-2 mt-2 items-center">
         <button id="btnValidarExist" class="btn bg-gray-200">Validar</button>
@@ -83,24 +83,24 @@
       <div class="grid md:grid-cols-2 gap-4">
         <div class="space-y-2">
           <input id="folioName" class="border p-2 rounded w-full" placeholder="Nombre del folio" />
-          <input id="operador" class="border p-2 rounded w-full" placeholder="¿Quién realiza el cíclico?" />
           <div class="grid grid-cols-2 gap-2">
-            <input id="almacenTipo" class="border p-2 rounded" placeholder="Tipo de almacén (Sucursal / CEDIS / Bodega)" />
-            <select id="temporada" class="border p-2 rounded">
-              <option value="TODAS">Temporada: TODAS</option>
-              <option value="LINEA">LÍNEA</option>
-              <option value="OFERTA">OFERTA</option>
-              <option value="SALDO">SALDO</option>
-              <option value="PASO">PASO</option>
-            </select>
+            <input id="operador" class="border p-2 rounded" placeholder="¿Quién realiza el cíclico?" />
+            <input id="almacen" class="border p-2 rounded" placeholder="Tipo de almacén (Sucursal / CEDIS / Bodega)" />
           </div>
+          <select id="temporada" class="border p-2 rounded w-full">
+            <option value="TODAS">Temporada: TODAS</option>
+            <option value="LINEA">LÍNEA</option>
+            <option value="OFERTA">OFERTA</option>
+            <option value="SALDO">SALDO</option>
+            <option value="PASO">PASO</option>
+          </select>
           <div class="mt-2 flex gap-2">
             <button id="btnCrearFolio" class="btn bg-green-600 text-white">Crear folio</button>
             <button id="btnCerrarFolio" class="btn bg-gray-200" title="Cierra el folio actual">Cerrar folio</button>
           </div>
         </div>
         <div class="space-y-2">
-          <input id="joinFolioId" class="border p-2 rounded w-full" placeholder="ID existente" />
+          <input id="joinFolioId" class="border p-2 rounded w-full" placeholder="ID existente (000001)" />
           <div class="flex gap-2">
             <button id="btnUnirseFolio" class="btn bg-blue-600 text-white">Unirse</button>
             <button id="btnCopiarLink" class="btn bg-gray-200">Copiar link</button>
@@ -244,10 +244,10 @@
     apiKey: "AIzaSyBe23iKn2bl0YMxsXUiTN5SkUrD9Vhvfo",
     authDomain: "cklass-conteo-ec4f5.firebaseapp.com",
     projectId: "cklass-conteo-ec4f5",
-    storageBucket: "cklass-conteo-ec4f5.firebasestorage.app",
+    storageBucket: "cklass-conteo-ec4f5.appspot.com",
     appId: "1:148726861241:web:592f683e941d13d2829e68"
   };
-  firebase.initializeApp(firebaseConfig);
+  if (firebase.apps?.length === 0) firebase.initializeApp(firebaseConfig);
   const db=firebase.firestore();
   const storage=firebase.storage();
   db.enablePersistence().catch(()=>{});
@@ -257,9 +257,9 @@
   const on=(id,ev,fn)=>{const n=$(id); if(n) n.addEventListener(ev,fn);};
   const esc=s=>String(s).replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]));
   const fmt=d=>{const p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`};
-  const canon = s => (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase();
   const keyOf=(mod,color,talla)=>`${(mod||'').trim()}|${(color||'').trim()}|${(talla||'').trim()}`;
   const splitKey=k=>{const [mod,color,talla]=String(k||'').split('|'); return {mod,color,talla};};
+  function canon(s){return (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase();}
 
   // ===== Tabs =====
   function showTab(name){
@@ -275,48 +275,35 @@
       showTab(btn.dataset.tab);
     }));
     showTab('importar');
+
+    // restaurar persistentes
+    ['operador','almacen','temporada','scanArea','scanPos','scanOperador','scanTemporada'].forEach(id=>{
+      const el=$(id); if(!el) return; const v=localStorage.getItem('cc-'+id); if(v!==null) el.value=v; el.addEventListener('input',e=>localStorage.setItem('cc-'+id,e.target.value)); el.addEventListener('change',e=>localStorage.setItem('cc-'+id,e.target.value));
+    });
   });
 
-  // ===== Catálogo (Storage) =====
-  const GS_PATH = 'gs://cklass-conteo-ec4f5.firebasestorage.app/static/catalogo-master.xlsx';
+  // ===== XLSX ensure (si no está en /static, intenta CDN) =====
+  function loadScript(url){ return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=url; s.onload=res; s.onerror=()=>rej(new Error('No se pudo cargar: '+url)); document.head.appendChild(s); }); }
+  async function ensureXLSX(){ if(window.XLSX) return; const cdns=[
+    'https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js',
+    'https://unpkg.com/xlsx@0.19.3/dist/xlsx.full.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.19.3/xlsx.full.min.js'
+  ]; for(const u of cdns){ try{ await loadScript(u); if(window.XLSX) return; }catch(e){} } throw new Error('XLSX no disponible'); }
+
+  // ===== Importar catálogo (usa tu flujo original con Storage) =====
   let CATALOGO = { byBarcode:new Map(), byVariant:new Map() };
-
-  on('btnPlantillaCSV','click',()=>{
-    const csv = 'MODELO,COLOR,TALLA,CANTIDAD\n587-12,NEGRO,250,3\n';
-    const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='plantilla_existencias.csv'; a.click(); URL.revokeObjectURL(a.href);
-  });
-
-  async function cargarCatalogoStorage(force=false){
-    try{
-      $('importStatus').textContent='Descargando…';
-      const ref = storage.refFromURL(GS_PATH);
-      const url = await ref.getDownloadURL();
-      const finalUrl = force ? `${url}${url.includes('?')?'&':'?'}v=${Date.now()}` : url;
-      const resp=await fetch(finalUrl,{cache:'no-store'});
-      if(!resp.ok) throw new Error('HTTP '+resp.status);
-      const ab=await resp.arrayBuffer();
-      if(!window.XLSX) throw new Error('XLSX no cargó');
-      const wb=XLSX.read(ab,{type:'array'});
-      const sh=wb.Sheets[wb.SheetNames[0]];
-      const rows=XLSX.utils.sheet_to_json(sh,{header:1,defval:''});
-      CATALOGO = buildCatalog(rows);
-      $('importStatus').textContent=`Catálogo OK: ${rows.length-1} filas (hoja: ${wb.SheetNames[0]})`;
-    }catch(e){ console.error(e); $('importStatus').textContent='❌ '+(e.message||e); }
-  }
-  on('btnRecargarCloud','click',()=>cargarCatalogoStorage(false));
-  on('btnForzarURL','click',()=>cargarCatalogoStorage(true));
-
   function buildCatalog(rows){
     const res={ byBarcode:new Map(), byVariant:new Map() };
     const H=(rows[0]||[]).map(canon);
-    const iCode=H.indexOf('CODIGO_BARRA');
-    const iMod =H.indexOf('MOD');
-    const iColor=H.indexOf('COLOR');
-    const iTalla=H.indexOf('TALLA');
+    const idx=names=>names.map(n=>H.indexOf(canon(n))).find(i=>i>=0);
+    const iCode=idx(['CODIGO_BARRA','CODIGO','EAN','UPC']);
+    const iMod =idx(['MOD','MODELO','SKU']);
+    const iColor=idx(['COLOR']);
+    const iTalla=idx(['TALLA']);
     for(let r=1;r<rows.length;r++){
       const row=rows[r]||[];
       const code=String(row[iCode]||'').trim();
-      const mod =String(row[iMod]||'').trim();
+      const mod=String(row[iMod]||'').trim();
       const color=String(row[iColor]||'').trim();
       const talla=String(row[iTalla]||'').trim();
       if(!code||!mod) continue;
@@ -327,32 +314,60 @@
     }
     return res;
   }
+  async function cargarCatalogoStorage(force){
+    try{
+      $('importStatus').textContent='Descargando...';
+      const url=await storage.ref('static/catalogo-master.xlsx').getDownloadURL();
+      const finalUrl = force ? (url + (url.includes('?')?'&':'?') + 'v=' + Date.now()) : url;
+      const resp=await fetch(finalUrl,{cache:'no-store'});
+      if(!resp.ok) throw new Error('HTTP '+resp.status);
+      const ab=await resp.arrayBuffer();
+      await ensureXLSX();
+      const wb=XLSX.read(ab,{type:'array'});
+      const sh=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(sh,{header:1,defval:''});
+      CATALOGO = buildCatalog(rows);
+      $('importStatus').textContent=`Catálogo OK: ${rows.length-1} filas (hoja: ${wb.SheetNames[0]})`;
+    }catch(e){ console.error(e); $('importStatus').textContent='Error: '+(e.message||e); }
+  }
+  on('btnRecargarCloud','click',()=>cargarCatalogoStorage(false));
+  on('btnForzarURL','click',()=>cargarCatalogoStorage(true));
+  on('btnPlantillaCSV','click',()=>{ const csv='MODELO,COLOR,TALLA,CANTIDAD\n587-12,NEGRO,250,3\n'; const blob=new Blob([csv],{type:'text/csv'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='plantilla_existencias.csv'; a.click(); URL.revokeObjectURL(a.href); });
 
-  // ===== Folio =====
-  let FOLIO_ID=null; let FOLIO_DOC=null; let COUNTS=new Map();
-  let scansUnsub=null, countsUnsub=null;
-
+  // ===== Folio (autoincremental + validación estricta) =====
+  let FOLIO_ID=null; let FOLIO_DOC=null; let COUNTS=new Map(); let AGG_BY_AREA=new Map();
+  async function nextFolioNumber(){
+    const ref=db.collection('meta').doc('counters');
+    const n = await db.runTransaction(async tx=>{ const snap=await tx.get(ref); const cur = snap.exists ? (snap.data().nextFolio||1) : 1; tx.set(ref,{nextFolio:cur+1},{merge:true}); return cur; });
+    return n;
+  }
+  function req(val,msg){ if(!String(val||'').trim()){ alert(msg); throw new Error(msg); } return val.trim(); }
   async function crearFolio(){
-    const name=($('#folioName').value||'Cíclico').trim();
-    const operador=($('#operador').value||$('#scanOperador').value||'').trim();
-    const almacenTipo=($('#almacenTipo').value||'').trim();
-    const temporada=$('#temporada').value||'TODAS';
-    if(!operador) return alert('Indica quién realiza el cíclico');
-    const ref=db.collection('folios').doc();
-    await ref.set({ name, createdBy:operador, almacenTipo, temporada, state:'open', existenciasMap:{}, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
-    await activarFolio(ref.id);
+    try{
+      const name=($('#folioName')?.value||'Cíclico').trim()||'Cíclico';
+      const operador=req($('#operador')?.value,'Indica quién realiza el cíclico');
+      const almacen =req($('#almacen')?.value,'Indica el tipo de almacén');
+      const temporada=$('#temporada')?.value||'TODAS';
+      const number = await nextFolioNumber();
+      const id  = String(number).padStart(6,'0');
+      const ref = db.collection('folios').doc(id);
+      await ref.set({ id, number, name, createdBy:operador, almacen, temporada, state:'open', existenciasMap:{}, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+      await activarFolio(id);
+    }catch(e){ if(e && e.message) console.warn(e.message); else console.error(e); }
   }
   async function activarFolio(id){
-    FOLIO_ID=id; if(countsUnsub) countsUnsub(); if(scansUnsub) scansUnsub();
-    const snap=await db.collection('folios').doc(id).get(); if(!snap.exists) return alert('Folio no encontrado');
-    FOLIO_DOC=snap.data();
-    $('folioStatus').textContent=`Folio: ${id} — ${FOLIO_DOC.name} — Operador: ${FOLIO_DOC.createdBy}`;
-    $('folioFecha').textContent = FOLIO_DOC.createdAt?.toDate ? fmt(FOLIO_DOC.createdAt.toDate()) : '—';
+    const snap=await db.collection('folios').doc(id).get();
+    if(!snap.exists) return alert('Folio no encontrado');
+    FOLIO_ID=id; FOLIO_DOC=snap.data();
     $('envInfo').textContent = `Folio ${id}`;
-    $('joinFolioId').value=id; $('#scanOperador').value = FOLIO_DOC.createdBy || $('#scanOperador').value;
+    $('joinFolioId').value=id;
+    const dt=FOLIO_DOC.createdAt?.toDate ? FOLIO_DOC.createdAt.toDate() : new Date();
+    $('folioFecha').textContent = fmt(dt);
+    $('folioStatus').innerHTML = `Folio: <b>${id}</b> — ${esc(FOLIO_DOC.name||'')} · Operador: ${esc(FOLIO_DOC.createdBy||'')} · Almacén: ${esc(FOLIO_DOC.almacen||'')} · Temporada: ${esc(FOLIO_DOC.temporada||'')}`;
+    document.title = `Folio ${id} · Conteo Cíclico`;
     subscribeCounts(); subscribeScans();
   }
-  async function unirseFolio(){ const id=($('#joinFolioId').value||'').trim(); if(!id) return; await activarFolio(id); }
+  async function unirseFolio(){ const id=($('#joinFolioId')?.value||'').trim(); if(!id) return; await activarFolio(id); }
   on('btnCrearFolio','click',crearFolio);
   on('btnUnirseFolio','click',unirseFolio);
   on('btnCopiarLink','click',()=>{ if(!FOLIO_ID) return; const u=new URL(location.href); u.searchParams.set('folio',FOLIO_ID); navigator.clipboard.writeText(u.toString()); alert('Link copiado'); });
@@ -367,9 +382,8 @@
       const map=parseExistencias($('existText').value||'').map; if(Object.keys(map).length===0) return alert('No hay líneas válidas');
       await db.collection('folios').doc(FOLIO_ID).set({ existenciasMap: map, updatedAt: firebase.firestore.FieldValue.serverTimestamp() },{merge:true});
       $('existStatus').textContent=`Cargadas ${Object.keys(map).length} variantes`;
-    }catch(e){ console.error(e); $('existStatus').textContent='❌ '+(e.message||e); }
+    }catch(e){ console.error(e); $('existStatus').textContent='Error: '+(e.message||e); }
   });
-
   function parseExistencias(text){
     const out={}, bad=[];
     const lines=(text||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
@@ -379,7 +393,7 @@
       if(!m){
         const p = ln.split(',').map(s=>s.trim());
         if(p.length>=4 && /^\d+$/.test(p[p.length-1])){
-          const mod=p[0], color=p[1], talla=p[2], qty=parseInt(p[p.length-1]);
+          const mod=p[0], color=p[1], talla=p[2], qty=parseInt(p[p.length-1],10);
           const k=keyOf(mod,color,talla); out[k]=(out[k]||0)+qty; continue;
         }
       } else {
@@ -407,19 +421,8 @@
   }
 
   // ===== Realtime =====
-  function subscribeCounts(){
-    if(countsUnsub) countsUnsub(); COUNTS.clear(); if(!FOLIO_ID) return;
-    countsUnsub = db.collection('folios').doc(FOLIO_ID).collection('counts').onSnapshot(snap=>{
-      snap.forEach(d=>COUNTS.set(d.id, d.data().qty||0));
-    });
-  }
-  function subscribeScans(){
-    if(scansUnsub) scansUnsub(); if(!FOLIO_ID) return;
-    scansUnsub = db.collection('folios').doc(FOLIO_ID).collection('scans').orderBy('ts','desc').limit(500).onSnapshot(snap=>{
-      const rows=[]; snap.forEach(d=>{const x=d.data(); const dt=x.ts?.toDate?x.ts.toDate():new Date(); rows.push(`<tr><td>${fmt(dt)}</td><td>${esc(x.area||'')}</td><td>${esc(x.pos||'')}</td><td>${esc(x.code)}</td><td>${esc(x.mod||'')}</td><td>${esc(x.color||'')}</td><td>${esc(x.talla||'')}</td><td>${esc(x.user||'')}</td></tr>`);});
-      $('historyBody').innerHTML=rows.join('');
-    });
-  }
+  function subscribeCounts(){ if(!FOLIO_ID) return; COUNTS.clear(); db.collection('folios').doc(FOLIO_ID).collection('counts').onSnapshot(snap=>{ snap.forEach(d=>COUNTS.set(d.id, d.data().qty||0)); }); }
+  function subscribeScans(){ if(!FOLIO_ID) return; db.collection('folios').doc(FOLIO_ID).collection('scans').orderBy('ts','desc').limit(500).onSnapshot(snap=>{ const rows=[]; snap.forEach(d=>{const x=d.data(); const dt=x.ts?.toDate?x.ts.toDate():new Date(); rows.push(`<tr><td>${fmt(dt)}</td><td>${esc(x.area||'')}</td><td>${esc(x.pos||'')}</td><td>${esc(x.code)}</td><td>${esc(x.mod||'')}</td><td>${esc(x.color||'')}</td><td>${esc(x.talla||'')}</td><td>${esc(x.user||x.operador||'')}</td></tr>`);}); $('historyBody').innerHTML=rows.join(''); }); }
 
   // ===== GS1 mínima =====
   function computeEAN13CheckDigit(d12){const a=d12.split('').map(Number);let s=0;for(let i=0;i<12;i++) s+=a[i]*(i%2?3:1);return String((10-(s%10))%10)}
@@ -427,7 +430,7 @@
   function normalizeBarcode(raw){const s=String(raw).trim(); if(/^\d{13}$/.test(s)){const cd=computeEAN13CheckDigit(s.slice(0,12)); return {ean13:s.slice(0,12)+cd};} if(/^\d{12}$/.test(s)) return {ean13:'0'+s}; if(/^\d{14}$/.test(s)) return {ean13:toEAN13FromGTIN14(s)}; return {raw:s};}
 
   // ===== Escáner =====
-  let scanning=false; let activeTrack=null; let TORCH=false;
+  let scanning=false; let activeTrack=null; let TORCH=false; let lastDetect=0;
   on('btnRefreshCam','click',async()=>{ const list=await navigator.mediaDevices.enumerateDevices(); const cams=list.filter(d=>d.kind==='videoinput'); $('cameraSelect').innerHTML=cams.map(d=>`<option value="${d.deviceId}">${d.label||('Cam '+d.deviceId.slice(-4))}</option>`).join(''); });
   on('btnStart','click',startScanner);
   on('btnStop','click',stopScanner);
@@ -442,7 +445,7 @@
       await Quagga.init({ inputStream:{ name:'Live', type:'LiveStream', target: document.querySelector('#interactive'), constraints: devId? {deviceId:devId}:{ facingMode:'environment'} }, decoder:{ readers:['ean_reader','ean_8_reader','upc_reader','upc_e_reader','code_128_reader'] }, locate:true });
       Quagga.start();
       setTimeout(()=>{ try{ const v=document.querySelector('#interactive video'); activeTrack=v?.srcObject?.getVideoTracks?.()[0]; }catch{} },300);
-      Quagga.onDetected(res=>{ const code=(res?.codeResult?.code||'').trim(); if(code) handleBarcode(code); });
+      Quagga.onDetected(res=>{ const now=Date.now(); if(now-lastDetect<400) return; lastDetect=now; const code=(res?.codeResult?.code||'').trim(); if(code) handleBarcode(code); });
     }catch(e){ console.error(e); scanning=false; alert('No se pudo iniciar cámara'); }
   }
   function stopScanner(){ try{ Quagga.stop(); }catch{} scanning=false; activeTrack=null; TORCH=false; }
@@ -451,12 +454,12 @@
     if(!FOLIO_ID) return alert('Sin folio'); if(CATALOGO.byBarcode.size===0) return alert('Catálogo no cargado');
     const n=normalizeBarcode(code); const key=n.ean13||code; const item = CATALOGO.byBarcode.get(key)||CATALOGO.byBarcode.get(String(code));
     if(!item){ $('lastItem').textContent='No encontrado: '+code; return; }
-    const area = ($('#scanArea').value||'').trim();
-    const pos  = ($('#scanPos').value||'').trim();
-    const user = ($('#scanOperador').value||FOLIO_DOC?.createdBy||'').trim();
-    const temporada = $('#scanTemporada').value||FOLIO_DOC?.temporada||'TODAS';
+    const area = ($('#scanArea')?.value||'').trim();
+    const pos  = ($('#scanPos')?.value||'').trim();
+    const user = ($('#scanOperador')?.value||$('#operador')?.value||FOLIO_DOC?.createdBy||'').trim();
+    const temporada = $('#scanTemporada')?.value||FOLIO_DOC?.temporada||'TODAS';
     await registrarScan(item, code, {area,pos,user,temporada});
-    $('lastItem').textContent = `✔ ${item.mod} ${item.color||''} ${item.talla||''} (${key}) — ${area}${pos?(' · '+pos):''}`;
+    $('lastItem').textContent = `OK ${item.mod} ${item.color||''} ${item.talla||''} (${key}) — ${area}${pos?(' · '+pos):''}`;
   }
   async function registrarScan(item, code, meta){
     const folio=db.collection('folios').doc(FOLIO_ID);
@@ -467,13 +470,7 @@
     ]).catch(e=>{console.error(e); alert('Error registrando');});
   }
 
-  // Persistencia local de área/posición/operador/temporada
-  ['scanArea','scanPos','scanOperador','scanTemporada'].forEach(id=>{
-    const key='cc-'+id; const el=$(id); if(!el) return; const v=localStorage.getItem(key); if(v) el.value=v; el.addEventListener('change',()=>localStorage.setItem(key,el.value));
-  });
-
   // ===== Reporte =====
-  let AGG_BY_AREA = new Map();
   on('btnRefrescarReporte','click', async ()=>{ await loadAggregatesByArea(); renderReport(); });
   on('btnExportarCSV','click',()=>{
     const rows = buildReportRows($('#groupMode').value==='area');
@@ -493,9 +490,9 @@
   function buildReportRows(byArea){
     const ex = (FOLIO_DOC?.existenciasMap)||{};
     const rows=[];
-    const modF = ($('#filtroModelo').value||'').trim().toUpperCase();
-    const colF = ($('#filtroColor').value||'').trim().toUpperCase();
-    const talF = ($('#filtroTalla').value||'').trim().toUpperCase();
+    const modF = ($('#filtroModelo')?.value||'').trim().toUpperCase();
+    const colF = ($('#filtroColor')?.value||'').trim().toUpperCase();
+    const talF = ($('#filtroTalla')?.value||'').trim().toUpperCase();
 
     if(byArea){
       AGG_BY_AREA.forEach((mods, area)=>{
@@ -534,19 +531,6 @@
     }
   }
   function renderReport(){ const byArea=$('#groupMode').value==='area'; const rows=buildReportRows(byArea); $('reportBody').innerHTML = rows.map(r=>`<tr><td>${esc(r.area||'')}</td><td>${esc(r.mod)}</td><td>${esc(r.color||'')}</td><td>${esc(r.talla||'')}</td><td class=\"text-right\">${r.theo}</td><td class=\"text-right\">${r.scan}</td><td class=\"text-right ${r.diff===0?'':(r.diff>0?'text-emerald-600':'text-red-600')}\">${r.diff}</td></tr>`).join(''); }
-
-  // ===== Consulta de modelo =====
-  on('btnBuscarModelo','click',buscarModelo);
-  async function buscarModelo(){
-    if(!FOLIO_ID) return alert('Sin folio');
-    const mod=($('#qModelo').value||'').trim(); const color=($('#qColor').value||'').trim(); const talla=($('#qTalla').value||'').trim();
-    if(!mod) return alert('Indica modelo');
-    const vkey=keyOf(mod,color,talla);
-    let q=db.collection('folios').doc(FOLIO_ID).collection('scans').where('vkey','==',vkey).orderBy('ts','desc').limit(100);
-    const snap=await q.get();
-    const rows=[]; snap.forEach(d=>{ const x=d.data(); const dt=x.ts?.toDate?x.ts.toDate():new Date(); rows.push(`<tr><td>${fmt(dt)}</td><td>${esc(x.area||'')}</td><td>${esc(x.pos||'')}</td><td>${esc(x.user||'')}</td><td>${esc(x.temporada||'')}</td></tr>`); });
-    $('consultaBody').innerHTML = rows.join('') || `<tr><td colspan=5 class='text-center text-gray-500'>Sin resultados</td></tr>`;
-  }
 
   // ===== Inicio =====
   window.addEventListener('DOMContentLoaded',()=>{
