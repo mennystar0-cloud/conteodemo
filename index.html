@@ -5,6 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Conteo Cíclico</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23000000'/%3E%3Ctext x='2' y='12' fill='%23ffffff' font-family='Arial' font-size='10'%3ECC%3C/text%3E%3C/svg%3E">
   <!-- UI -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Librerías locales (sin CORS). Sube estos archivos a /static de tu repo -->
@@ -472,7 +473,7 @@
   on('btnRefreshCam','click',async()=>{ const list=await navigator.mediaDevices.enumerateDevices(); const cams=list.filter(d=>d.kind==='videoinput'); $('cameraSelect').innerHTML=cams.map(d=>`<option value="${d.deviceId}">${d.label||('Cam '+d.deviceId.slice(-4))}</option>`).join(''); });
   on('btnStart','click',startScanner);
   on('btnStop','click',stopScanner);
-  on('btnTorch','click',async()=>{ try{ activeTrack = activeTrack || document.querySelector('#interactive video')?.srcObject?.getVideoTracks?.()[0]; await activeTrack.applyConstraints({advanced:[{torch: !(TORCH=!TORCH)}]}); }catch{ alert('Linterna no soportada'); }});
+  on('btnTorch','click',async()=>{ try{ activeTrack = activeTrack || document.querySelector('#interactive video')?.srcObject?.getVideoTracks?.()[0]; await activeTrack.applyConstraints({advanced:[{torch: !(TORCH=!TORCH)}]}); }catch(e){ alert('Linterna no soportada'); }});
   on('manualCode','keydown',e=>{ if(e.key==='Enter'){ const v=e.currentTarget.value.trim(); if(v) handleBarcode(v); e.currentTarget.value=''; }});
 
   async function startScanner(){
@@ -482,11 +483,11 @@
     try{
       await Quagga.init({ inputStream:{ name:'Live', type:'LiveStream', target: document.querySelector('#interactive'), constraints: devId? {deviceId:devId}:{ facingMode:'environment'} }, decoder:{ readers:['ean_reader','ean_8_reader','upc_reader','upc_e_reader','code_128_reader'] }, locate:true });
       Quagga.start();
-      setTimeout(()=>{ try{ const v=document.querySelector('#interactive video'); activeTrack=v?.srcObject?.getVideoTracks?.()[0]; }catch{} },300);
+      setTimeout(()=>{ try{ const v=document.querySelector('#interactive video'); activeTrack=v?.srcObject?.getVideoTracks?.()[0]; }catch(e){} },300);
       Quagga.onDetected(res=>{ const now=Date.now(); if(now-lastDetect<400) return; lastDetect=now; const code=(res?.codeResult?.code||'').trim(); if(code) handleBarcode(code); });
     }catch(e){ console.error(e); scanning=false; alert('No se pudo iniciar cámara'); }
   }
-  function stopScanner(){ try{ Quagga.stop(); }catch{} scanning=false; activeTrack=null; TORCH=false; }
+  function stopScanner(){ try{ Quagga.stop(); }catch(e){} scanning=false; activeTrack=null; TORCH=false; }
 
   async function handleBarcode(code){
     if(!FOLIO_ID) return alert('Sin folio'); if(CATALOGO.byBarcode.size===0) return alert('Catálogo no cargado');
