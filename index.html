@@ -8,8 +8,8 @@
   <!-- UI -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Scanner y XLSX (desde tu bucket, ya sin dominio .firebasestorage.app) -->
-  <script src="https://firebasestorage.googleapis.com/v0/b/cklass-conteo-ec4f5.appspot.com/o/static%2Fquagga.min.js?alt=media"></script>
-  <script src="https://firebasestorage.googleapis.com/v0/b/cklass-conteo-ec4f5.appspot.com/o/static%2Fxlsx.full.min.js?alt=media"></script>
+  <script src="static/quagga.min.js"></script>
+  <script src="static/xlsx.full.min.js"></script>
   <!-- Firebase compat -->
   <script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore-compat.js"></script>
@@ -277,34 +277,70 @@
     showTab('importar');
   });
 
-  // ===== Catálogo (Storage) =====
+  // ===== Catálogo (Storage + fallback local) =====
   const GS_PATH = 'gs://cklass-conteo-ec4f5.appspot.com/static/catalogo-master.xlsx';
+  const LOCAL_CATALOG_PATH = 'static/catalogo-master.xlsx';
   let CATALOGO = { byBarcode:new Map(), byVariant:new Map() };
 
   on('btnPlantillaCSV','click',()=>{
-    const csv = 'MODELO,COLOR,TALLA,CANTIDAD\n587-12,NEGRO,250,3\n';
+    const csv = 'MODELO,COLOR,TALLA,CANTIDAD
+587-12,NEGRO,250,3
+';
     const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='plantilla_existencias.csv'; a.click(); URL.revokeObjectURL(a.href);
   });
 
-  async function cargarCatalogoStorage(force=false){
+  async function ensureXLSX(){
+    if(window.XLSX) return;
+    try{ await loadScriptLocal('static/xlsx.full.min.js'); if(window.XLSX) return; }catch{}
+    const cdns=[
+      'https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js',
+      'https://unpkg.com/xlsx@0.19.3/dist/xlsx.full.min.js',
+      'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.19.3/xlsx.full.min.js'
+    ];
+    for(const u of cdns){ try{ await loadScriptLocal(u); if(window.XLSX) return; }catch{} }
+    throw new Error('XLSX no disponible');
+  }
+  function loadScriptLocal(src){
+    return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=()=>rej(new Error('No se pudo cargar: '+src)); document.head.appendChild(s); });
+  }
+
+  async function tryStorage(force){
+    const ref = storage.refFromURL(GS_PATH);
+    const url = await ref.getDownloadURL();
+    const finalUrl = force ? `${url}${url.includes('?')?'&':'?'}v=${Date.now()}` : url;
+    const resp=await fetch(finalUrl,{cache:'no-store'});
+    if(!resp.ok) throw new Error('HTTP '+resp.status);
+    const ab=await resp.arrayBuffer();
+    await ensureXLSX();
+    const wb=XLSX.read(ab,{type:'array'});
+    const sh=wb.Sheets[wb.SheetNames[0]];
+    const rows=XLSX.utils.sheet_to_json(sh,{header:1,defval:''});
+    return { rows, sheet: wb.SheetNames[0], source:'storage' };
+  }
+  async function tryLocal(force){
+    const url = force ? `${LOCAL_CATALOG_PATH}?v=${Date.now()}` : LOCAL_CATALOG_PATH;
+    const resp=await fetch(url,{cache:'no-store'});
+    if(!resp.ok) throw new Error('HTTP '+resp.status);
+    const ab=await resp.arrayBuffer();
+    await ensureXLSX();
+    const wb=XLSX.read(ab,{type:'array'});
+    const sh=wb.Sheets[wb.SheetNames[0]];
+    const rows=XLSX.utils.sheet_to_json(sh,{header:1,defval:''});
+    return { rows, sheet: wb.SheetNames[0], source:'local' };
+  }
+
+  async function cargarCatalogo(force=false){
     try{
       $('importStatus').textContent='Descargando…';
-      const ref = storage.refFromURL(GS_PATH);
-      const url = await ref.getDownloadURL();
-      const finalUrl = force ? `${url}${url.includes('?')?'&':'?'}v=${Date.now()}` : url;
-      const resp=await fetch(finalUrl,{cache:'no-store'});
-      if(!resp.ok) throw new Error('HTTP '+resp.status);
-      const ab=await resp.arrayBuffer();
-      if(!window.XLSX) throw new Error('XLSX no cargó');
-      const wb=XLSX.read(ab,{type:'array'});
-      const sh=wb.Sheets[wb.SheetNames[0]];
-      const rows=XLSX.utils.sheet_to_json(sh,{header:1,defval:''});
-      CATALOGO = buildCatalog(rows);
-      $('importStatus').textContent=`Catálogo OK: ${rows.length-1} filas (hoja: ${wb.SheetNames[0]})`;
+      let data; let storageErr=null;
+      try{ data = await tryStorage(force); }catch(e){ storageErr=e; console.warn('Storage falló:', e?.message||e); }
+      if(!data){ try{ data = await tryLocal(force); }catch(e){ console.error('Local falló:', e?.message||e); throw storageErr||e; } }
+      CATALOGO = buildCatalog(data.rows);
+      const count = data.rows.length-1; $('importStatus').textContent=`Catálogo OK: ${count} filas (hoja: ${data.sheet}) · Origen: ${data.source}`;
     }catch(e){ console.error(e); $('importStatus').textContent='❌ '+(e.message||e); }
   }
-  on('btnRecargarCloud','click',()=>cargarCatalogoStorage(false));
-  on('btnForzarURL','click',()=>cargarCatalogoStorage(true));
+  on('btnRecargarCloud','click',()=>cargarCatalogo(false));
+  on('btnForzarURL','click',()=>cargarCatalogo(true));
 
   function buildCatalog(rows){
     const res={ byBarcode:new Map(), byVariant:new Map() };
