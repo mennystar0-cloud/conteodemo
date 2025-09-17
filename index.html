@@ -149,6 +149,7 @@
             <button id="btnTorch" class="btn bg-gray-200">Linterna</button>
             <button id="btnStart" class="btn bg-blue-600 text-white">Iniciar</button>
             <button id="btnStop" class="btn bg-gray-200">Detener</button>
+            <button id="btnDiag" class="btn bg-gray-200">Diagnóstico</button>
           </div>
         </div>
         <div>
@@ -158,14 +159,7 @@
           </div>
           <div class="grid grid-cols-2 gap-2 mt-2">
             <input id="scanOperador" class="border p-2 rounded" placeholder="Operador (persistente)" />
-            <select id="scanTemporada" class="border p-2 rounded">
-              <option value="TODAS">Temporada: TODAS</option>
-              <option value="LINEA">LÍNEA</option>
-              <option value="OFERTA">OFERTA</option>
-              <option value="SALDO">SALDO</option>
-              <option value="PASO">PASO</option>
-            </select>
-          </div>
+            </div>
           <label class="text-sm mt-2 block">Entrada manual</label>
           <input id="manualCode" class="border p-2 rounded w-full" placeholder="Pega un código y Enter" />
           <div id="lastItem" class="mt-2 text-sm text-gray-700">—</div>
@@ -173,6 +167,17 @@
       </div>
     </div>
   </section>
+
+  <!-- Modal Diagnóstico -->
+  <div id="diagModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-2xl p-4 max-w-xl w-[90%]">
+      <h3 class="font-semibold mb-2">Diagnóstico de cámara / entorno</h3>
+      <div id="diagContent" class="text-sm whitespace-pre-wrap">Cargando…</div>
+      <div class="mt-3 text-right">
+        <button id="btnDiagClose" class="btn bg-gray-200">Cerrar</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Reporte -->
   <section id="tab-reporte" class="hidden">
@@ -296,7 +301,7 @@
     const tabs=document.querySelectorAll('#tabs [data-tab]');
     tabs.forEach(btn=>btn.addEventListener('click',()=>{ tabs.forEach(b=>b.classList.remove('border-blue-600','text-blue-600')); btn.classList.add('border-blue-600','text-blue-600'); showTab(btn.dataset.tab); }));
     const isStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone; if (isStandalone || window.innerWidth < 768) { showTab('escanear'); } else { showTab('importar'); }
-    ['operador','almacen','temporada','scanArea','scanPos','scanOperador','scanTemporada'].forEach(id=>{ const el=$(id); if(!el) return; const v=localStorage.getItem('cc-'+id); if(v!==null) el.value=v; el.addEventListener('input',e=>localStorage.setItem('cc-'+id,e.target.value)); el.addEventListener('change',e=>localStorage.setItem('cc-'+id,e.target.value)); });
+    ['operador','almacen','temporada','scanArea','scanPos','scanOperador'].forEach(id=>{ const el=$(id); if(!el) return; const v=localStorage.getItem('cc-'+id); if(v!==null) el.value=v; el.addEventListener('input',e=>localStorage.setItem('cc-'+id,e.target.value)); el.addEventListener('change',e=>localStorage.setItem('cc-'+id,e.target.value)); });
     // Modo tienda & ahorro
     let xlPref = localStorage.getItem('cc-mode-xl'); let autoXL = (isStandalone || window.innerWidth < 768); let xlOn = (xlPref!==null) ? (xlPref==='1') : autoXL; document.documentElement.classList.toggle('mode-xl', xlOn); if($('toggleXL')) $('toggleXL').checked=xlOn; localStorage.setItem('cc-mode-xl', xlOn?'1':'0');
     const savePref = localStorage.getItem('cc-battery-save'); const saveOn = (savePref!==null) ? (savePref==='1') : (window.innerWidth < 768); setBatterySave(saveOn); if($('toggleSave')) $('toggleSave').checked=saveOn;
@@ -317,8 +322,16 @@
   // ===== Folio =====
   let FOLIO_ID=null; let FOLIO_DOC=null; let COUNTS=new Map(); let AGG_BY_AREA=new Map();
   async function nextFolioNumber(){ const ref=db.collection('meta').doc('counters'); const n=await db.runTransaction(async tx=>{ const snap=await tx.get(ref); const cur=snap.exists?(snap.data().nextFolio||1):1; tx.set(ref,{nextFolio:cur+1},{merge:true}); return cur; }); return n; }
-  function req(val,msg){ if(!String(val||'').trim()){ alert(msg); throw new Error(msg); } return val.trim(); }
-  async function crearFolio(){ try{ const name=($('#folioName')?.value||'Cíclico').trim()||'Cíclico'; const operador=req($('#operador')?.value,'Indica quién realiza el cíclico'); const almacen=req($('#almacen')?.value,'Indica el tipo de almacén'); const temporada=$('#temporada')?.value||'TODAS'; const number=await nextFolioNumber(); const id=String(number).padStart(6,'0'); const ref=db.collection('folios').doc(id); await ref.set({ id, number, name, createdBy:operador, almacen, temporada, state:'open', existenciasMap:{}, createdAt: firebase.firestore.FieldValue.serverTimestamp() }); await activarFolio(id); }catch(e){ console.warn(e.message||e); }}
+  function req(input,msg){
+    var val;
+    if (typeof input === 'string') { val = input; }
+    else if (input && typeof input === 'object' && 'value' in input) { val = input.value; }
+    else { val = input; }
+    var s = String(val||'').trim();
+    if(!s){ alert(msg); throw new Error(msg); }
+    return s;
+  } return val.trim(); }
+  async function crearFolio(){ try{ const name=($('#folioName')?.value||'Cíclico').trim()||'Cíclico'; const operador=req($('#operador'),'Indica quién realiza el cíclico'); const almacen=req($('#almacen'),'Indica el tipo de almacén'); const temporada=$('#temporada')?.value||'TODAS'; const number=await nextFolioNumber(); const id=String(number).padStart(6,'0'); const ref=db.collection('folios').doc(id); await ref.set({ id, number, name, createdBy:operador, almacen, temporada, state:'open', existenciasMap:{}, createdAt: firebase.firestore.FieldValue.serverTimestamp() }); await activarFolio(id); }catch(e){ console.warn(e.message||e); }}
   async function activarFolio(id){ const snap=await db.collection('folios').doc(id).get(); if(!snap.exists) return alert('Folio no encontrado'); FOLIO_ID=id; FOLIO_DOC=snap.data(); $('envInfo').textContent='Folio '+id; $('joinFolioId').value=id; const dt=FOLIO_DOC.createdAt?.toDate?FOLIO_DOC.createdAt.toDate():new Date(); $('folioFecha').textContent=fmt(dt); $('folioStatus').innerHTML=`Folio: <b>${id}</b> — ${esc(FOLIO_DOC.name||'')} · Operador: ${esc(FOLIO_DOC.createdBy||'')} · Almacén: ${esc(FOLIO_DOC.almacen||'')} · Temporada: ${esc(FOLIO_DOC.temporada||'')}`; document.title='Folio '+id+' · Conteo Cíclico'; subscribeCounts(); subscribeScans(); }
   async function unirseFolio(){ const id=($('#joinFolioId')?.value||'').trim(); if(!id) return; await activarFolio(id); }
   on('btnCrearFolio','click',crearFolio);
@@ -375,13 +388,68 @@
   function stopScanner(){ try{ if(rafId) cancelAnimationFrame(rafId); stopFpsMonitor(); if(videoEl && videoEl.srcObject){ videoEl.srcObject.getTracks().forEach(t=>t.stop()); } if(window.Quagga){ try{ Quagga.stop(); }catch(e){} } }catch(e){} scanning=false; activeTrack=null; TORCH=false; }
   on('btnStop','click',stopScanner);
   on('btnTorch','click',()=>{ try{ if(!activeTrack){ const v=document.querySelector('#interactive video'); if(v && v.srcObject && v.srcObject.getVideoTracks){ const t=v.srcObject.getVideoTracks(); activeTrack=(t && t[0])? t[0]:null; } } if(!activeTrack) return alert('Inicia la cámara'); const caps=activeTrack.getCapabilities && activeTrack.getCapabilities(); if(!caps || !caps.torch) return alert('Linterna no soportada'); TORCH=!TORCH; activeTrack.applyConstraints({advanced:[{torch: TORCH}]}); }catch(e){ alert('Linterna no soportada'); }});
+  on('btnDiag','click',()=>{ const m=$('diagModal'); if(m){ m.classList.remove('hidden'); runDiagnostics(); } });
+  on('btnDiagClose','click',()=>{ const m=$('diagModal'); if(m) m.classList.add('hidden'); });
+  async function runDiagnostics(){
+    const lines=[];
+    try{
+      lines.push(`Origen: ${location.origin}`);
+      lines.push(`Contexto seguro: ${window.isSecureContext}`);
+      const dm = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone;
+      lines.push(`PWA (standalone): ${!!dm}`);
+      lines.push(`BarcodeDetector: ${'BarcodeDetector' in window}`);
+      if ('BarcodeDetector' in window && window.BarcodeDetector.getSupportedFormats){
+        try{ const fmts=await window.BarcodeDetector.getSupportedFormats(); lines.push('Formatos BD: '+fmts.join(', ')); }catch(_){ }
+      }
+      if (navigator.mediaDevices?.enumerateDevices){
+        const list = await navigator.mediaDevices.enumerateDevices();
+        const cams = list.filter(d=>d.kind==='videoinput');
+        lines.push(`Cámaras: ${cams.length}`);
+        cams.forEach((c,i)=>lines.push(`  [${i}] ${c.label||('Cam '+(c.deviceId||'').slice(-4))}`));
+      }
+      if (activeTrack && activeTrack.getCapabilities){
+        const caps = activeTrack.getCapabilities();
+        lines.push(`Torch soportado: ${!!caps.torch}`);
+        if (caps.focusMode) lines.push(`Enfoque: ${JSON.stringify(caps.focusMode)}`);
+      } else {
+        lines.push('Torch soportado: (iniciar cámara para verificar)');
+      }
+    }catch(e){ lines.push('Error diag: '+(e.message||e)); }
+    $('diagContent').textContent = lines.join('
+');
+  } if(v && v.srcObject && v.srcObject.getVideoTracks){ const t=v.srcObject.getVideoTracks(); activeTrack=(t && t[0])? t[0]:null; } } if(!activeTrack) return alert('Inicia la cámara'); const caps=activeTrack.getCapabilities && activeTrack.getCapabilities(); if(!caps || !caps.torch) return alert('Linterna no soportada'); TORCH=!TORCH; activeTrack.applyConstraints({advanced:[{torch: TORCH}]}); }catch(e){ alert('Linterna no soportada'); }});
   on('toggleXL','change', e=>{ const on=e.target.checked; document.documentElement.classList.toggle('mode-xl', on); localStorage.setItem('cc-mode-xl', on?'1':'0'); });
   on('toggleSave','change', e=>{ const on=e.target.checked; const was=scanning; setBatterySave(on); if(was){ stopScanner(); (hasBarcodeDetector()? startNativeDetector(): startQuagga()); } });
   document.addEventListener('visibilitychange', ()=>{ if(document.hidden && scanning){ stopScanner(); } });
 
   // ===== Registro de scan =====
   async function registrarScan(item, code, meta){ if(!FOLIO_ID) throw new Error('No folio'); const refFol=db.collection('folios').doc(FOLIO_ID); const vkey=item.vkey||keyOf(item.mod,item.color,item.talla); const scanDoc={ ts: firebase.firestore.FieldValue.serverTimestamp(), code:String(code), vkey, mod:item.mod, color:item.color||'', talla:item.talla||'', area:meta.area||'', pos:meta.pos||'', user:meta.user||meta.operador||'', temporada:meta.temporada||'' }; await refFol.collection('scans').add(scanDoc); await refFol.collection('counts').doc(vkey).set({qty: firebase.firestore.FieldValue.increment(1)}, {merge:true}); }
-  function handleBarcode(code){ if(!FOLIO_ID){ beep(220,120); haptic([60]); return alert('Sin folio'); } if(CATALOGO.byBarcode.size===0){ beep(220,120); haptic([60]); return alert('Catálogo no cargado'); } const n=normalizeBarcode(code); const key=n.ean13||code; const item=CATALOGO.byBarcode.get(key)||CATALOGO.byBarcode.get(String(code)); if(!item){ $('lastItem').textContent='No encontrado: '+code; beep(220,140); haptic([40,60,40]); return; } const area=($('#scanArea')?.value||'').trim(); const pos=($('#scanPos')?.value||'').trim(); const user=($('#scanOperador')?.value||$('#operador')?.value||(FOLIO_DOC&&FOLIO_DOC.createdBy)||'').trim(); const temporada=$('#scanTemporada')?.value||(FOLIO_DOC&&FOLIO_DOC.temporada)||'TODAS'; registrarScan(item, code, {area,pos,user,temporada}).then(()=>{ $('lastItem').textContent=`OK ${item.mod} ${item.color||''} ${item.talla||''} (${key}) — ${area}${pos?(' · '+pos):''}`; beep(1000,70); haptic(25); }); }
+  function handleBarcode(code){
+    if(!FOLIO_ID){ beep(220,120); haptic([60]); return alert('Sin folio'); }
+    if(CATALOGO.byBarcode.size===0){ beep(220,120); haptic([60]); return alert('Catálogo no cargado'); }
+    const n=normalizeBarcode(code);
+    const key=n.ean13||code;
+    const item=CATALOGO.byBarcode.get(key)||CATALOGO.byBarcode.get(String(code));
+    if(!item){ $('lastItem').textContent='No encontrado: '+code; beep(220,140); haptic([40,60,40]); return; }
+    const area=($('#scanArea')?.value||'').trim();
+    const pos =($('#scanPos')?.value||'').trim();
+    const user=($('#scanOperador')?.value||$('#operador')?.value||(FOLIO_DOC&&FOLIO_DOC.createdBy)||'').trim();
+    const temporada=FOLIO_DOC?.temporada||'TODAS';
+    const vkey=item.vkey||keyOf(item.mod,item.color,item.talla);
+    registrarScan(item, code, {area,pos,user,temporada}).then(()=>{
+      const theo = Number((FOLIO_DOC && FOLIO_DOC.existenciasMap && FOLIO_DOC.existenciasMap[vkey]) || 0);
+      const nextScan = Number((COUNTS.get(vkey)||0) + 1);
+      const diff = nextScan - theo;
+      COUNTS.set(vkey, nextScan);
+      $('lastItem').innerHTML = `
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="font-semibold">OK ${esc(item.mod)} ${esc(item.color||'')} ${esc(item.talla||'')}</span>
+          <span class="text-xs">(${esc(vkey)}) — ${esc(area)}${pos?(' · '+esc(pos)) : ''}</span>
+          <span class="ml-2 badge ${diff===0?'bg-gray-100':(diff>0?'bg-green-100 text-emerald-700':'bg-red-100 text-red-700')}">Teo: ${theo} · Scan: ${nextScan} · Dif: ${diff}</span>
+        </div>`;
+      beep(1000,70); haptic(25);
+    });
+  }
   on('manualCode','keydown',e=>{ if(e.key==='Enter'){ const v=e.target.value.trim(); if(v) handleBarcode(v); e.target.value=''; }});
 
   // ===== Reporte =====
