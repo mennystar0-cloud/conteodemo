@@ -371,7 +371,7 @@
       FOLIO_ID=id; FOLIO_DOC=snap.data();
       $('envInfo').textContent='Folio '+id;
       $('joinFolioId').value=id;
-      const dt=FOLIO_DOC.createdAt?.toDate?FOLIO_DOC.createdAt.toDate():new Date();
+      var dt = (FOLIO_DOC && FOLIO_DOC.createdAt && typeof FOLIO_DOC.createdAt.toDate === 'function') ? FOLIO_DOC.createdAt.toDate() : new Date();
       $('folioFecha').textContent=fmt(dt);
       $('folioStatus').innerHTML=`Folio: <b>${id}</b> — ${esc(FOLIO_DOC.name||'')} · Operador: ${esc(FOLIO_DOC.createdBy||'')} · Almacén: ${esc(FOLIO_DOC.almacen||'')} · Temporada: ${esc(FOLIO_DOC.temporada||'')}`;
       document.title='Folio '+id+' · Conteo Cíclico';
@@ -538,10 +538,10 @@
     const key=n.ean13||code;
     const item=CATALOGO.byBarcode.get(key)||CATALOGO.byBarcode.get(String(code));
     if(!item){ $('lastItem').textContent='No encontrado: '+code; beep(220,140); haptic([40,60,40]); return; }
-    const area=($('#scanArea')?.value||'').trim();
-    const pos =($('#scanPos')?.value||'').trim();
-    const user=($('#scanOperador')?.value||$('#operador')?.value||(FOLIO_DOC&&FOLIO_DOC.createdBy)||'').trim();
-    const temporada=FOLIO_DOC?.temporada||'TODAS';
+    const area=((document.getElementById('scanArea') && document.getElementById('scanArea').value) || '').trim();
+    const pos =((document.getElementById('scanPos') && document.getElementById('scanPos').value) || '').trim();
+    const user=((document.getElementById('scanOperador') && document.getElementById('scanOperador').value) || (document.getElementById('operador') && document.getElementById('operador').value) || (FOLIO_DOC && FOLIO_DOC.createdBy) || '').trim();
+    var temporada = (FOLIO_DOC && FOLIO_DOC.temporada) ? FOLIO_DOC.temporada : 'TODAS';
     const vkey=item.vkey||keyOf(item.mod,item.color,item.talla);
     const now=Date.now();
     const last=LAST_SEEN.get(vkey)||0;
@@ -601,7 +601,7 @@
       .then(function(q){ const batch=db.batch(); q.forEach(function(d){ batch.delete(d.ref); }); return batch.commit().then(function(){ alert('Borrados: '+q.size); }); })
       .catch(function(e){ alert('Error: '+(e.message||e)); });
   }); const area=prompt('Área a borrar (máx 1000 docs por ejecución):'); if(!area) return; if(!confirm('¿Seguro de borrar scans del área '+area+'?')) return; const q=await db.collection('folios').doc(FOLIO_ID).collection('scans').where('area','==',area).limit(1000).get(); const batch=db.batch(); q.forEach(d=>batch.delete(d.ref)); await batch.commit(); alert('Borrados: '+q.size); });
-  function buildReportRows(byArea){ const ex=(FOLIO_DOC?.existenciasMap)||{}; const rows=[]; const modF=($('#filtroModelo')?.value||'').trim().toUpperCase(); const colF=($('#filtroColor')?.value||'').trim().toUpperCase(); const talF=($('#filtroTalla')?.value||'').trim().toUpperCase(); if(byArea){ AGG_BY_AREA.forEach((mods, area)=>{ mods.forEach((scan, vkey)=>{ const {mod,color,talla}=splitKey(vkey); if(modF && !mod.toUpperCase().includes(modF)) return; if(colF && !(color||'').toUpperCase().includes(colF)) return; if(talF && !(talla||'').toUpperCase().includes(talF)) return; const theo=Number(ex[vkey]||0); rows.push({ area, mod, color, talla, theo, scan, diff: scan-theo }); }); }); return rows.sort((a,b)=> (a.area||'').localeCompare(b.area||'') || a.mod.localeCompare(b.mod) || (a.color||'').localeCompare(b.color||'') || (a.talla||'').localeCompare(b.talla||'')); } const set=new Set([ ...Object.keys(ex), ...COUNTS.keys() ]); set.forEach(vkey=>{ const {mod,color,talla}=splitKey(vkey); if(modF && !mod.toUpperCase().includes(modF)) return; if(colF && !(color||'').toUpperCase().includes(colF)) return; if(talF && !(talla||'').toUpperCase().includes(talF)) return; const theo=Number(ex[vkey]||0); const scan=Number(COUNTS.get(vkey)||0); rows.push({ area:'', mod, color, talla, theo, scan, diff:scan-theo }); }); return rows.sort((a,b)=>a.mod.localeCompare(b.mod) || (a.color||'').localeCompare(b.color||'') || (a.talla||'').localeCompare(b.talla||'')); }
+  function buildReportRows(byArea){ var ex = (FOLIO_DOC && FOLIO_DOC.existenciasMap) || {}; const rows=[]; const modF=($('#filtroModelo')?.value||'').trim().toUpperCase(); const colF=($('#filtroColor')?.value||'').trim().toUpperCase(); const talF=($('#filtroTalla')?.value||'').trim().toUpperCase(); if(byArea){ AGG_BY_AREA.forEach((mods, area)=>{ mods.forEach((scan, vkey)=>{ const {mod,color,talla}=splitKey(vkey); if(modF && !mod.toUpperCase().includes(modF)) return; if(colF && !(color||'').toUpperCase().includes(colF)) return; if(talF && !(talla||'').toUpperCase().includes(talF)) return; const theo=Number(ex[vkey]||0); rows.push({ area, mod, color, talla, theo, scan, diff: scan-theo }); }); }); return rows.sort((a,b)=> (a.area||'').localeCompare(b.area||'') || a.mod.localeCompare(b.mod) || (a.color||'').localeCompare(b.color||'') || (a.talla||'').localeCompare(b.talla||'')); } const set=new Set([ ...Object.keys(ex), ...COUNTS.keys() ]); set.forEach(vkey=>{ const {mod,color,talla}=splitKey(vkey); if(modF && !mod.toUpperCase().includes(modF)) return; if(colF && !(color||'').toUpperCase().includes(colF)) return; if(talF && !(talla||'').toUpperCase().includes(talF)) return; const theo=Number(ex[vkey]||0); const scan=Number(COUNTS.get(vkey)||0); rows.push({ area:'', mod, color, talla, theo, scan, diff:scan-theo }); }); return rows.sort((a,b)=>a.mod.localeCompare(b.mod) || (a.color||'').localeCompare(b.color||'') || (a.talla||'').localeCompare(b.talla||'')); }
   function loadAggregatesByArea(){
     if(!FOLIO_ID){ AGG_BY_AREA=new Map(); return Promise.resolve(); }
     AGG_BY_AREA=new Map();
