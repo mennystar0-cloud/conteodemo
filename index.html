@@ -8,16 +8,13 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Conteo Cíclico</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23000000'/%3E%3Ctext x='2' y='12' fill='%23ffffff' font-family='Arial' font-size='10'%3ECC%3C/text%3E%3C/svg%3E">
-  <!-- UI -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Librerías locales (sin CORS). Sube estos archivos a /static de tu repo -->
-  <script src="static/xlsx.full.min.js"></script>
+  <!-- (Opcional) Sube estos a /static. Si faltan, XLSX va por CDN. -->
+  <!-- <script src="static/xlsx.full.min.js"></script> -->
   <script src="static/quagga.min.js"></script>
-  <!-- Firebase compat -->
+  <!-- Firebase compat (solo Firestore) -->
   <script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-storage-compat.js"></script>
   <style>
     .btn{padding:.5rem .75rem;border-radius:.5rem;font-size:.875rem}
     .tab-btn{padding:.5rem .75rem;border-bottom:2px solid transparent}
@@ -25,6 +22,13 @@
     .cam{height:45vh;max-height:400px;background:#000;overflow:hidden;border-radius:1rem}
     th,td{padding:.35rem .5rem;border-bottom:1px solid #eee}
     .badge{border-radius:.5rem;padding:.1rem .5rem;font-size:.75rem}
+    /* Alto contraste / XL (modo tienda) */
+    .mode-xl body{background:#0b0b0b;color:#fff;}
+    .mode-xl .card{background:#111827;color:#fff;}
+    .mode-xl .btn{padding:0.9rem 1.1rem;font-size:1.125rem;border-width:2px;}
+    .mode-xl .tab-btn{padding:.75rem 1rem;font-weight:600;}
+    .mode-xl input,.mode-xl select,.mode-xl textarea{font-size:1.05rem;}
+    .mode-xl .cam{height:60vh;max-height:none;}
   </style>
 </head>
 <body class="bg-gray-50 text-gray-900">
@@ -32,14 +36,14 @@
   <header class="flex items-center justify-between mb-4">
     <div>
       <h1 class="text-xl font-bold">Conteo Cíclico — Catálogo + Existencias + Escaneo</h1>
-      <p class="text-sm text-gray-600">Configuración en PC, escaneo en móviles por folio.</p>
+      <p class="text-sm text-gray-600">Configuración en PC, escaneo en móviles por folio (PWA instalable).</p>
     </div>
-    <div class="text-sm text-gray-600">
+    <div class="text-sm text-gray-600 flex items-center gap-2">
       <span id="envInfo" class="badge bg-gray-100">Sin folio</span>
+      <button id="btnInstall" class="btn bg-emerald-600 text-white hidden ml-2">Instalar app</button>
     </div>
   </header>
 
-  <!-- Tabs -->
   <nav class="flex flex-wrap gap-2 mb-4" id="tabs">
     <button data-tab="importar" class="tab-btn border-blue-600 text-blue-600">Importar</button>
     <button data-tab="existencias" class="tab-btn">Existencias</button>
@@ -53,8 +57,8 @@
   <!-- Importar catálogo -->
   <section id="tab-importar" class="block">
     <div class="card">
-      <h2 class="font-semibold mb-2">Catálogo maestro (Local/PWA)</h2>
-      <p class="text-sm text-gray-600">Lee <code>static/catalogo-master.xlsx</code> local (ideal para PWA/offline). Columnas: <code>CODIGO_BARRA</code>, <code>MOD</code>, <code>COLOR</code>, <code>TALLA</code>.</p>
+      <h2 class="font-semibold mb-2">Catálogo maestro</h2>
+      <p class="text-sm text-gray-600">Usa <code>/static/catalogo-master.xlsx</code> (local). Columnas: <code>CODIGO_BARRA</code>, <code>MOD</code>, <code>COLOR</code>, <code>TALLA</code>.</p>
       <div class="flex flex-wrap gap-2 mt-2 items-center">
         <button id="btnRecargarCloud" class="btn bg-blue-600 text-white">Recargar catálogo</button>
         <button id="btnForzarURL" class="btn bg-amber-500 text-white">Forzar URL única</button>
@@ -68,8 +72,8 @@
   <section id="tab-existencias" class="hidden">
     <div class="card">
       <h2 class="font-semibold mb-2">Pegar existencias (teórico)</h2>
-      <p class="text-sm text-gray-600">Formato por línea: <code>MODELO,COLOR TALLA CANTIDAD</code> (ej: <code>587-12,NEGRO 250 3</code>) o CSV <code>MODELO,COLOR,TALLA,CANTIDAD</code>.</p>
-      <textarea id="existText" rows="8" class="w-full border rounded p-2" placeholder="Ejemplos&#10;587-12,NEGRO 250 3&#10;ABC-01,ROJO 27 2&#10;ABC-01,ROJO,27,2"></textarea>
+      <p class="text-sm text-gray-600">Formato por línea: <code>MODELO,COLOR TALLA CANTIDAD</code> (ej: <code>587-12,NEGRO 250 3</code>) ó CSV <code>MODELO,COLOR,TALLA,CANTIDAD</code>.</p>
+      <textarea id="existText" rows="8" class="w-full border rounded p-2" placeholder="Ejemplos&#10;587-12,NEGRO 250 3&#10;040-83,ANIMAL PRINT 230 3&#10;ABC-01,ROJO,27,2"></textarea>
       <div class="flex flex-wrap gap-2 mt-2 items-center">
         <button id="btnValidarExist" class="btn bg-gray-200">Validar</button>
         <button id="btnCargarExist" class="btn bg-green-600 text-white">Cargar al folio</button>
@@ -120,6 +124,13 @@
   <section id="tab-escanear" class="hidden">
     <div class="card">
       <h2 class="font-semibold mb-2">Escanear</h2>
+      <div class="flex items-center gap-3 mb-2">
+        <label class="flex items-center gap-2 text-sm">
+          <input id="toggleXL" type="checkbox" class="h-4 w-4">
+          Modo tienda: alto contraste / botones XL
+        </label>
+        <span class="text-xs text-gray-500">Se guarda en este dispositivo</span>
+      </div>
       <div class="grid md:grid-cols-2 gap-4">
         <div>
           <div class="cam"><div id="interactive" class="viewport w-full h-full"></div></div>
@@ -243,23 +254,14 @@
 
 <script>
 (function(){
-  // ===== PWA (manifest dinámico + Service Worker inline) =====
+  // ===== PWA (manifest + SW en runtime) =====
   (function setupPWA(){
     try{
-      var manifest = {
-        name: "Conteo Cíclico",
-        short_name: "Conteo",
-        start_url: "./?mode=pwa",
-        display: "standalone",
-        background_color: "#111827",
-        theme_color: "#0ea5e9",
-        icons: []
-      };
-      var mblob = new Blob([JSON.stringify(manifest)], {type:"application/manifest+json"});
+      var manifest = { name: 'Conteo Cíclico', short_name: 'Conteo', start_url: './?mode=pwa', display: 'standalone', background_color: '#111827', theme_color: '#0ea5e9', icons: [] };
+      var mblob = new Blob([JSON.stringify(manifest)], {type:'application/manifest+json'});
       var link = document.createElement('link'); link.rel='manifest'; link.href=URL.createObjectURL(mblob); document.head.appendChild(link);
-
       if ('serviceWorker' in navigator && window.isSecureContext){
-        var swCode = `const C='cc-v1';const A=[location.pathname,'static/quagga.min.js','static/xlsx.full.min.js','static/catalogo-master.xlsx'];self.addEventListener('install',e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(A.filter(Boolean))).then(()=>self.skipWaiting()))});self.addEventListener('activate',e=>{e.waitUntil(self.clients.claim())});self.addEventListener('fetch',e=>{const u=new URL(e.request.url);if(u.origin===location.origin&&(u.pathname.startsWith('/static/')||u.pathname===location.pathname)){e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request).then(res=>{const cc=res.clone();caches.open(C).then(c=>c.put(e.request,cc));return res;})))}});`;
+        var swCode = "const C='cc-v1';const A=[location.pathname,'static/quagga.min.js','static/xlsx.full.min.js','static/catalogo-master.xlsx'];self.addEventListener('install',e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(A.filter(Boolean))).then(()=>self.skipWaiting()))});self.addEventListener('activate',e=>{e.waitUntil(self.clients.claim())});self.addEventListener('fetch',e=>{const u=new URL(e.request.url);if(u.origin===location.origin&&(u.pathname.startsWith('/static/')||u.pathname===location.pathname)){e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request).then(res=>{const cc=res.clone();caches.open(C).then(c=>c.put(e.request,cc));return res;})))}});";
         var swBlob = new Blob([swCode], {type:'text/javascript'});
         navigator.serviceWorker.register(URL.createObjectURL(swBlob));
       }
@@ -267,323 +269,117 @@
   })();
 
   // ===== Firebase init =====
-  const firebaseConfig = {
-    apiKey: "AIzaSyBe23iKn2bl0YMxsXUiTN5SkUrD9Vhvfo",
-    authDomain: "cklass-conteo-ec4f5.firebaseapp.com",
-    projectId: "cklass-conteo-ec4f5",
-    storageBucket: "cklass-conteo-ec4f5.appspot.com",
-    appId: "1:148726861241:web:592f683e941d13d2829e68"
-  };
-  if (firebase.apps?.length === 0) firebase.initializeApp(firebaseConfig);
-  const db=firebase.firestore();
-  const storage=firebase.storage();
-  db.enablePersistence().catch(()=>{});
+  var firebaseConfig = { apiKey: 'AIzaSyBe23iKn2bl0YMxsXUiTN5SkUrD9Vhvfo', authDomain: 'cklass-conteo-ec4f5.firebaseapp.com', projectId: 'cklass-conteo-ec4f5', storageBucket: 'cklass-conteo-ec4f5.appspot.com', appId: '1:148726861241:web:592f683e941d13d2829e68' };
+  if (!firebase.apps || firebase.apps.length === 0) firebase.initializeApp(firebaseConfig);
+  var db=firebase.firestore(); try{ db.enablePersistence(); }catch(e){}
 
   // ===== Helpers =====
-  const $=id=>document.getElementById(id);
-  const on=(id,ev,fn)=>{const n=$(id); if(n) n.addEventListener(ev,fn);};
-  const esc=s=>String(s).replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]));
-  const fmt=d=>{const p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`};
-  const keyOf=(mod,color,talla)=>`${(mod||'').trim()}|${(color||'').trim()}|${(talla||'').trim()}`;
-  const splitKey=k=>{const [mod,color,talla]=String(k||'').split('|'); return {mod,color,talla};};
-  function canon(s){return (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase();}
+  function $(id){ return document.getElementById(id); }
+  function on(id,ev,fn){ var n=$(id); if(n) n.addEventListener(ev,fn); }
+  function esc(s){ return String(s).replace(/[&<>]/g,function(m){ return {"&":"&amp;","<":"&lt;",">":"&gt;"}[m]; }); }
+  function fmt(d){ function p(n){ return String(n).padStart(2,'0'); } return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+" "+p(d.getHours())+":"+p(d.getMinutes()); }
+  function canon(s){ return (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase(); }
+  function keyOf(mod,color,talla){ return (mod||'').trim()+"|"+(color||'').trim()+"|"+(talla||'').trim(); }
+  function splitKey(k){ var a=String(k||'').split('|'); return {mod:a[0],color:a[1],talla:a[2]}; }
+  function gv(id){ var el=$(id); return el? el.value: ''; }
+
+  // ===== PWA: botón Instalar & Modo XL =====
+  var deferredPrompt=null;
+  window.addEventListener('beforeinstallprompt', function(e){ e.preventDefault(); deferredPrompt=e; var b=$('btnInstall'); if(b) b.classList.remove('hidden'); });
+  window.addEventListener('appinstalled', function(){ var b=$('btnInstall'); if(b) b.classList.add('hidden'); deferredPrompt=null; });
+  on('btnInstall','click', function(){ if(!deferredPrompt){ var isiOS=/iphone|ipad|ipod/i.test(navigator.userAgent); if(isiOS){ alert('En iPhone: usa Compartir → "Añadir a pantalla de inicio".'); } else { alert('Si no ves el banner, usa Chrome/Edge en Android o vuelve a abrir el sitio.'); } return; } deferredPrompt.prompt(); deferredPrompt.userChoice.then(function(choice){ if(choice && choice.outcome==='accepted'){ var b=$('btnInstall'); if(b) b.classList.add('hidden'); } deferredPrompt=null; }, function(){ deferredPrompt=null; }); });
+  on('toggleXL','change', function(e){ var onFlag=!!e.target.checked; document.documentElement.classList.toggle('mode-xl', onFlag); localStorage.setItem('cc-mode-xl', onFlag?'1':'0'); });
 
   // ===== Tabs =====
-  function showTab(name){
-    ['importar','existencias','folio','escanear','reporte','consulta','historial'].forEach(t=>{
-      const el=$('tab-'+t); if(!el) return; el.classList.toggle('hidden',t!==name); el.classList.toggle('block',t===name);
-    });
-  }
-  window.addEventListener('DOMContentLoaded',()=>{
-    const tabs=document.querySelectorAll('#tabs [data-tab]');
-    tabs.forEach(btn=>btn.addEventListener('click',()=>{
-      tabs.forEach(b=>b.classList.remove('border-blue-600','text-blue-600'));
-      btn.classList.add('border-blue-600','text-blue-600');
-      showTab(btn.dataset.tab);
-    }));
+  function showTab(name){ var arr=['importar','existencias','folio','escanear','reporte','consulta','historial']; for(var i=0;i<arr.length;i++){ var t=arr[i]; var el=$('tab-'+t); if(!el) continue; el.classList.toggle('hidden',t!==name); el.classList.toggle('block',t===name); } }
+  window.addEventListener('DOMContentLoaded',function(){
+    var tabs=document.querySelectorAll('#tabs [data-tab]');
+    Array.prototype.forEach.call(tabs,function(btn){ btn.addEventListener('click',function(){ Array.prototype.forEach.call(tabs,function(b){ b.classList.remove('border-blue-600','text-blue-600'); }); btn.classList.add('border-blue-600','text-blue-600'); showTab(btn.getAttribute('data-tab')); }); });
     var isStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone; if (isStandalone || window.innerWidth < 768) { showTab('escanear'); } else { showTab('importar'); }
-
-    // restaurar persistentes
-    ['operador','almacen','temporada','scanArea','scanPos','scanOperador','scanTemporada'].forEach(id=>{
-      const el=$(id); if(!el) return; const v=localStorage.getItem('cc-'+id); if(v!==null) el.value=v; el.addEventListener('input',e=>localStorage.setItem('cc-'+id,e.target.value)); el.addEventListener('change',e=>localStorage.setItem('cc-'+id,e.target.value));
-    });
+    // Persistentes
+    var persist=['operador','almacen','temporada','scanArea','scanPos','scanOperador','scanTemporada'];
+    for(var i=0;i<persist.length;i++){ (function(id){ var el=$(id); if(!el) return; var v=localStorage.getItem('cc-'+id); if(v!==null) el.value=v; el.addEventListener('input',function(e){ localStorage.setItem('cc-'+id,e.target.value); }); el.addEventListener('change',function(e){ localStorage.setItem('cc-'+id,e.target.value); }); })(persist[i]); }
+    // XL stored
+    var xlPref = localStorage.getItem('cc-mode-xl')==='1'; if (xlPref) { document.documentElement.classList.add('mode-xl'); var xlT=$('toggleXL'); if(xlT) xlT.checked=true; }
   });
 
-  // ===== XLSX ensure (fallback si no carga el local incluido en <head>) =====
+  // ===== Cargar XLSX (fallback a CDN) =====
   function loadScript(url){ return new Promise(function(res,rej){ var s=document.createElement('script'); s.src=url; s.onload=res; s.onerror=function(){rej(new Error('No se pudo cargar: '+url));}; document.head.appendChild(s); }); }
-  function ensureXLSX(){ if(window.XLSX) return Promise.resolve(); var cdns=[
-    'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
-    'https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js',
-    'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'
-  ]; var i=0; function next(){ if(window.XLSX) return Promise.resolve(); if(i>=cdns.length) return Promise.reject(new Error('XLSX no disponible')); var u=cdns[i++]; return loadScript(u).then(function(){ if(!window.XLSX) return next(); }); } return next(); }
+  function ensureXLSX(){ if(window.XLSX) return Promise.resolve(); var cdns=[ 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js', 'https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js', 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js' ]; var i=0; function next(){ if(window.XLSX) return Promise.resolve(); if(i>=cdns.length) return Promise.reject(new Error('XLSX no disponible')); var u=cdns[i++]; return loadScript(u).then(function(){ if(!window.XLSX) return next(); }); } return next(); }
 
-  // ===== Importar catálogo (LOCAL para PWA/offline) =====
+  // ===== Importar catálogo (LOCAL) =====
   var CATALOGO = { byBarcode:new Map(), byVariant:new Map() };
-  function buildCatalog(rows){
-    var res={ byBarcode:new Map(), byVariant:new Map() };
-    var H=(rows[0]||[]).map(canon);
-    function idx(names){ for(var j=0;j<names.length;j++){ var i=H.indexOf(canon(names[j])); if(i>=0) return i; } return -1; }
-    var iCode=idx(['CODIGO_BARRA','CODIGO','EAN','UPC']);
-    var iMod =idx(['MOD','MODELO','SKU']);
-    var iColor=idx(['COLOR']);
-    var iTalla=idx(['TALLA']);
-    for(var r=1;r<rows.length;r++){
-      var row=rows[r]||[];
-      var code=String(row[iCode]||'').trim();
-      var mod=String(row[iMod]||'').trim();
-      var color=String(row[iColor]||'').trim();
-      var talla=String(row[iTalla]||'').trim();
-      if(!code||!mod) continue;
-      var vkey=keyOf(mod,color,talla);
-      var item={mod:mod,color:color,talla:talla,vkey:vkey};
-      res.byBarcode.set(code,item);
-      if(!res.byVariant.has(vkey)) res.byVariant.set(vkey,item);
-    }
-    return res;
-  }
-  function cargarCatalogo(force){
-    $('importStatus').textContent='Descargando...';
-    var url = 'static/catalogo-master.xlsx' + (force?('?v='+Date.now()):'');
-    fetch(url,{cache:'no-store'})
-      .then(function(resp){ if(!resp.ok) throw new Error('HTTP '+resp.status); return resp.arrayBuffer(); })
-      .then(function(ab){ return ensureXLSX().then(function(){ return ab; }); })
-      .then(function(ab){ var wb=XLSX.read(ab,{type:'array'}); var sh=wb.Sheets[wb.SheetNames[0]]; var rows=XLSX.utils.sheet_to_json(sh,{header:1,defval:''}); CATALOGO=buildCatalog(rows); $('importStatus').textContent='Catálogo OK: '+(rows.length-1)+' filas (hoja: '+wb.SheetNames[0]+') · Origen: local'; })
-      .then(null,function(e){ console.error(e); $('importStatus').textContent='Error: '+(e && e.message ? e.message : e); });
-  }
+  function buildCatalog(rows){ var res={ byBarcode:new Map(), byVariant:new Map() }; var H=(rows[0]||[]).map(canon); function idx(names){ for(var j=0;j<names.length;j++){ var i=H.indexOf(canon(names[j])); if(i>=0) return i; } return -1; } var iCode=idx(['CODIGO_BARRA','CODIGO','EAN','UPC']); var iMod =idx(['MOD','MODELO','SKU']); var iColor=idx(['COLOR']); var iTalla=idx(['TALLA']); for(var r=1;r<rows.length;r++){ var row=rows[r]||[]; var code=String(row[iCode]||'').trim(); var mod=String(row[iMod]||'').trim(); var color=String(row[iColor]||'').trim(); var talla=String(row[iTalla]||'').trim(); if(!code||!mod) continue; var vkey=keyOf(mod,color,talla); var item={mod:mod,color:color,talla:talla,vkey:vkey}; res.byBarcode.set(code,item); if(!res.byVariant.has(vkey)) res.byVariant.set(vkey,item); } return res; }
+  function cargarCatalogo(force){ $('importStatus').textContent='Descargando...'; var url='static/catalogo-master.xlsx'+(force?('?v='+Date.now()):''); fetch(url,{cache:'no-store'}).then(function(resp){ if(!resp.ok) throw new Error('HTTP '+resp.status); return resp.arrayBuffer(); }).then(function(ab){ return ensureXLSX().then(function(){ return ab; }); }).then(function(ab){ var wb=XLSX.read(ab,{type:'array'}); var sh=wb.Sheets[wb.SheetNames[0]]; var rows=XLSX.utils.sheet_to_json(sh,{header:1,defval:''}); CATALOGO=buildCatalog(rows); $('importStatus').textContent='Catálogo OK: '+(rows.length-1)+' filas (hoja: '+wb.SheetNames[0]+') · Origen: local'; }).then(null,function(e){ console.error(e); $('importStatus').textContent='Error: '+(e && e.message ? e.message : e); }); }
   on('btnRecargarCloud','click',function(){ cargarCatalogo(false); });
   on('btnForzarURL','click',function(){ cargarCatalogo(true); });
-  on('btnPlantillaCSV','click',function(){ var csv='MODELO,COLOR,TALLA,CANTIDAD
-587-12,NEGRO,250,3
-'; var blob=new Blob([csv],{type:'text/csv'}); var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='plantilla_existencias.csv'; a.click(); URL.revokeObjectURL(a.href); });
+  on('btnPlantillaCSV','click',function(){ var csv='MODELO,COLOR,TALLA,CANTIDAD\n587-12,NEGRO,250,3\n'; var blob=new Blob([csv],{type:'text/csv'}); var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='plantilla_existencias.csv'; a.click(); URL.revokeObjectURL(a.href); });
 
-  // ===== Folio (autoincremental + validación estricta) =====
-  let FOLIO_ID=null; let FOLIO_DOC=null; let COUNTS=new Map(); let AGG_BY_AREA=new Map();
-  async function nextFolioNumber(){
-    const ref=db.collection('meta').doc('counters');
-    const n = await db.runTransaction(async tx=>{ const snap=await tx.get(ref); const cur = snap.exists ? (snap.data().nextFolio||1) : 1; tx.set(ref,{nextFolio:cur+1},{merge:true}); return cur; });
-    return n;
-  }
+  // ===== Folio (autoincremental) =====
+  var FOLIO_ID=null; var FOLIO_DOC=null; var COUNTS=new Map(); var AGG_BY_AREA=new Map();
+  function nextFolioNumber(){ var ref=db.collection('meta').doc('counters'); return db.runTransaction(function(tx){ return tx.get(ref).then(function(snap){ var cur = snap.exists ? (snap.data().nextFolio||1) : 1; tx.set(ref,{nextFolio:cur+1},{merge:true}); return cur; }); }).then(null,function(e){ alert('Permisos insuficientes en Firestore para meta/counters'); throw e; }); }
   function req(val,msg){ if(!String(val||'').trim()){ alert(msg); throw new Error(msg); } return val.trim(); }
-  async function crearFolio(){
-    try{
-      const name=($('#folioName')?.value||'Cíclico').trim()||'Cíclico';
-      const operador=req($('#operador')?.value,'Indica quién realiza el cíclico');
-      const almacen =req($('#almacen')?.value,'Indica el tipo de almacén');
-      const temporada=$('#temporada')?.value||'TODAS';
-      const number = await nextFolioNumber();
-      const id  = String(number).padStart(6,'0');
-      const ref = db.collection('folios').doc(id);
-      await ref.set({ id, number, name, createdBy:operador, almacen, temporada, state:'open', existenciasMap:{}, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
-      await activarFolio(id);
-    }catch(e){ if(e && e.message) console.warn(e.message); else console.error(e); }
-  }
-  async function activarFolio(id){
-    const snap=await db.collection('folios').doc(id).get();
-    if(!snap.exists) return alert('Folio no encontrado');
-    FOLIO_ID=id; FOLIO_DOC=snap.data();
-    $('envInfo').textContent = `Folio ${id}`;
-    $('joinFolioId').value=id;
-    const dt=FOLIO_DOC.createdAt?.toDate ? FOLIO_DOC.createdAt.toDate() : new Date();
-    $('folioFecha').textContent = fmt(dt);
-    $('folioStatus').innerHTML = `Folio: <b>${id}</b> — ${esc(FOLIO_DOC.name||'')} · Operador: ${esc(FOLIO_DOC.createdBy||'')} · Almacén: ${esc(FOLIO_DOC.almacen||'')} · Temporada: ${esc(FOLIO_DOC.temporada||'')}`;
-    document.title = `Folio ${id} · Conteo Cíclico`;
-    subscribeCounts(); subscribeScans();
-  }
-  async function unirseFolio(){ const id=($('#joinFolioId')?.value||'').trim(); if(!id) return; await activarFolio(id); }
+  function crearFolio(){ try{ var name=(gv('folioName')||'Cíclico').trim()||'Cíclico'; var operador=req(gv('operador'),'Indica quién realiza el cíclico'); var almacen=req(gv('almacen'),'Indica el tipo de almacén'); var temporada=gv('temporada')||'TODAS'; nextFolioNumber().then(function(number){ var id=String(number).padStart(6,'0'); var ref=db.collection('folios').doc(id); ref.set({ id:id, number:number, name:name, createdBy:operador, almacen:almacen, temporada:temporada, state:'open', existenciasMap:{}, createdAt: firebase.firestore.FieldValue.serverTimestamp() }).then(function(){ activarFolio(id); }).then(null,function(e){ console.error(e); alert('No se pudo crear el folio'); }); }); }catch(e){ if(e && e.message) console.warn(e.message); else console.error(e); } }
+  function activarFolio(id){ db.collection('folios').doc(id).get().then(function(snap){ if(!snap.exists){ alert('Folio no encontrado'); return; } FOLIO_ID=id; FOLIO_DOC=snap.data(); $('envInfo').textContent = 'Folio '+id; $('joinFolioId').value=id; var dt = (FOLIO_DOC.createdAt && FOLIO_DOC.createdAt.toDate) ? FOLIO_DOC.createdAt.toDate() : new Date(); $('folioFecha').textContent = fmt(dt); $('folioStatus').innerHTML = 'Folio: <b>'+id+'</b> — '+esc(FOLIO_DOC.name||'')+' · Operador: '+esc(FOLIO_DOC.createdBy||'')+' · Almacén: '+esc(FOLIO_DOC.almacen||'')+' · Temporada: '+esc(FOLIO_DOC.temporada||''); document.title = 'Folio '+id+' · Conteo Cíclico'; subscribeCounts(); subscribeScans(); }); }
+  function unirseFolio(){ var id=(gv('joinFolioId')||'').trim(); if(!id) return; activarFolio(id); }
   on('btnCrearFolio','click',crearFolio);
   on('btnUnirseFolio','click',unirseFolio);
-  on('btnCopiarLink','click',()=>{ if(!FOLIO_ID) return; const u=new URL(location.href); u.searchParams.set('folio',FOLIO_ID); navigator.clipboard.writeText(u.toString()); alert('Link copiado'); });
-  on('btnCerrarFolio','click',async()=>{ if(!FOLIO_ID) return; await db.collection('folios').doc(FOLIO_ID).update({state:'closed'}); alert('Folio cerrado'); });
+  on('btnCopiarLink','click',function(){ if(!FOLIO_ID) return; var u=new URL(location.href); u.searchParams.set('folio',FOLIO_ID); navigator.clipboard.writeText(u.toString()); alert('Link copiado'); });
+  on('btnCerrarFolio','click',function(){ if(!FOLIO_ID) return; db.collection('folios').doc(FOLIO_ID).update({state:'closed'}).then(function(){ alert('Folio cerrado'); }); });
 
-  // ===== Existencias (pegar + validar) =====
-  on('btnLimpiarExist','click',()=>{ $('existText').value=''; $('existStatus').textContent='—'; $('existPreview').innerHTML=''; });
-  on('btnValidarExist','click',()=>renderExistPreview(parseExistencias($('existText').value||'')));
-  on('btnCargarExist','click',async()=>{
-    try{
-      if(!FOLIO_ID) return alert('Crea/Activa un folio');
-      const map=parseExistencias($('existText').value||'').map; if(Object.keys(map).length===0) return alert('No hay líneas válidas');
-      await db.collection('folios').doc(FOLIO_ID).set({ existenciasMap: map, updatedAt: firebase.firestore.FieldValue.serverTimestamp() },{merge:true});
-      $('existStatus').textContent=`Cargadas ${Object.keys(map).length} variantes`;
-    }catch(e){ console.error(e); $('existStatus').textContent='Error: '+(e.message||e); }
-  });
-  function parseExistencias(text){
-    const out={}, bad=[];
-    const lines=(text||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-    for(let i=0;i<lines.length;i++){
-      const ln=lines[i];
-      let m = ln.match(/^([^,]+),\s*([^,\s]+)\s+([\w\.\-]+)\s+(\d+)$/i);
-      if(!m){
-        const p = ln.split(',').map(s=>s.trim());
-        if(p.length>=4 && /^\d+$/.test(p[p.length-1])){
-          const mod=p[0], color=p[1], talla=p[2], qty=parseInt(p[p.length-1],10);
-          const k=keyOf(mod,color,talla); out[k]=(out[k]||0)+qty; continue;
-        }
-      } else {
-        const [,mod,color,talla,qty]=m; const k=keyOf(mod,color,talla); out[k]=(out[k]||0)+parseInt(qty,10); continue;
-      }
-      bad.push({line:i+1, text:ln});
-    }
-    return {map:out, bad, total:Object.values(out).reduce((a,b)=>a+b,0)};
-  }
-  function renderExistPreview(res){
-    const rows = Object.entries(res.map).slice(0,500).map(([k,qty])=>{ const {mod,color,talla}=splitKey(k); return `<tr><td>${esc(mod)}</td><td>${esc(color)}</td><td>${esc(talla)}</td><td class=\"text-right\">${qty}</td></tr>`; }).join('');
-    const bads = res.bad.map(b=>`<li>L${b.line}: ${esc(b.text)}</li>`).join('');
-    $('existPreview').innerHTML = `
-      <div class='mt-2'>
-        <div class='text-sm'>Variantes válidas: <b>${Object.keys(res.map).length}</b> · Pzs: <b>${res.total}</b> ${res.bad.length?`· Inválidas: <b class='text-red-600'>${res.bad.length}</b>`:''}</div>
-        <div class='grid md:grid-cols-2 gap-4 mt-2'>
-          <div class='overflow-auto max-h-[40vh]'>
-            <table class='w-full text-sm'><thead><tr><th>Modelo</th><th>Color</th><th>Talla</th><th class='text-right'>Cant</th></tr></thead><tbody>${rows}</tbody></table>
-          </div>
-          <div>
-            ${res.bad.length?`<h3 class='font-semibold mb-1'>Líneas inválidas</h3><ul class='list-disc pl-5 text-red-600 text-sm'>${bads}</ul>`:"<div class='text-sm text-emerald-700'>Sin errores</div>"}
-          </div>
-        </div>
-      </div>`;
-  }
+  // ===== Existencias (pegado robusto) =====
+  on('btnLimpiarExist','click',function(){ $('existText').value=''; $('existStatus').textContent='—'; $('existPreview').innerHTML=''; });
+  on('btnValidarExist','click',function(){ renderExistPreview(parseExistencias($('existText').value||'')); });
+  on('btnCargarExist','click',function(){ try{ if(!FOLIO_ID) return alert('Crea/Activa un folio'); var res=parseExistencias($('existText').value||''); var map=res.map; if(Object.keys(map).length===0) return alert('No hay líneas válidas'); db.collection('folios').doc(FOLIO_ID).set({ existenciasMap: map, updatedAt: firebase.firestore.FieldValue.serverTimestamp() },{merge:true}).then(function(){ $('existStatus').textContent='Cargadas '+Object.keys(map).length+' variantes'; }).then(null,function(e){ console.error(e); $('existStatus').textContent='Error: '+(e && e.message ? e.message : e); }); }catch(e){ console.error(e); $('existStatus').textContent='Error: '+(e && e.message ? e.message : e); } });
+  function parseExistencias(text){ var out={}, bad=[]; var lines=(text||'').split(/\r?\n/).map(function(s){return s.trim();}).filter(Boolean); for(var i=0;i<lines.length;i++){ var ln=lines[i]; var parts = ln.split(','); if(parts.length===4){ var mod=parts[0].trim(); var color=parts[1].trim(); var talla=parts[2].trim(); var qty=parseInt(String(parts[3]).trim(),10); if(mod && color && talla && !isNaN(qty)){ var k=keyOf(mod,color,talla); out[k]=(out[k]||0)+qty; continue; } } if(ln.indexOf(',')>=0){ var first=ln.indexOf(','); var mod2=ln.slice(0,first).trim(); var rest=ln.slice(first+1).trim(); var mQty = rest.match(/(\d+)\s*$/); if(mQty){ var qty2=parseInt(mQty[1],10); var rest2=rest.slice(0,mQty.index).trim(); var mTalla = rest2.match(/([A-Za-z0-9_.\-]+)\s*$/); if(mTalla){ var talla2=mTalla[1]; var color2=rest2.slice(0,rest2.length-mTalla[0].length).trim(); if(mod2 && color2 && talla2 && !isNaN(qty2)){ var k2=keyOf(mod2,color2,talla2); out[k2]=(out[k2]||0)+qty2; continue; } } } } bad.push({line:i+1, text:ln}); } var total=0; Object.keys(out).forEach(function(k){ total+=out[k]; }); return {map:out, bad:bad, total:total}; }
+  function renderExistPreview(res){ var entries=[]; for(var k in res.map){ if(Object.prototype.hasOwnProperty.call(res.map,k)){ entries.push([k,res.map[k]]); } } var rows = entries.slice(0,500).map(function(e){ var k=e[0], qty=e[1]; var s=splitKey(k); return '<tr><td>'+esc(s.mod)+'</td><td>'+esc(s.color||'')+'</td><td>'+esc(s.talla||'')+'</td><td class="text-right">'+qty+'</td></tr>'; }).join(''); var bads = res.bad.map(function(b){return '<li>L'+b.line+': '+esc(b.text)+'</li>';}).join(''); $('existPreview').innerHTML = "\
+      <div class='mt-2'>\
+        <div class='text-sm'>Variantes válidas: <b>"+Object.keys(res.map).length+"</b> · Pzs: <b>"+res.total+"</b> "+(res.bad.length?"· Inválidas: <b class='text-red-600'>"+res.bad.length+"</b>":'')+"</div>\
+        <div class='grid md:grid-cols-2 gap-4 mt-2'>\
+          <div class='overflow-auto max-h-[40vh]'>\
+            <table class='w-full text-sm'><thead><tr><th>Modelo</th><th>Color</th><th>Talla</th><th class='text-right'>Cant</th></tr></thead><tbody>"+rows+"</tbody></table>\
+          </div>\
+          <div>\
+            "+(res.bad.length?"<h3 class='font-semibold mb-1'>Líneas inválidas</h3><ul class='list-disc pl-5 text-red-600 text-sm'>"+bads+"</ul>":"<div class='text-sm text-emerald-700'>Sin errores</div>")+"\
+          </div>\
+        </div>\
+      </div>"; }
 
-  // ===== Realtime =====
-  function subscribeCounts(){ if(!FOLIO_ID) return; COUNTS.clear(); db.collection('folios').doc(FOLIO_ID).collection('counts').onSnapshot(snap=>{ snap.forEach(d=>COUNTS.set(d.id, d.data().qty||0)); }); }
-  function subscribeScans(){ if(!FOLIO_ID) return; db.collection('folios').doc(FOLIO_ID).collection('scans').orderBy('ts','desc').limit(500).onSnapshot(snap=>{ const rows=[]; snap.forEach(d=>{const x=d.data(); const dt=x.ts?.toDate?x.ts.toDate():new Date(); rows.push(`<tr><td>${fmt(dt)}</td><td>${esc(x.area||'')}</td><td>${esc(x.pos||'')}</td><td>${esc(x.code)}</td><td>${esc(x.mod||'')}</td><td>${esc(x.color||'')}</td><td>${esc(x.talla||'')}</td><td>${esc(x.user||x.operador||'')}</td></tr>`);}); $('historyBody').innerHTML=rows.join(''); }); }
+  // ===== Realtime (counts + scans) =====
+  function subscribeCounts(){ if(!FOLIO_ID) return; COUNTS.clear(); db.collection('folios').doc(FOLIO_ID).collection('counts').onSnapshot(function(snap){ snap.forEach(function(d){ var v=d.data(); COUNTS.set(d.id, v.qty||0); }); }); }
+  function subscribeScans(){ if(!FOLIO_ID) return; db.collection('folios').doc(FOLIO_ID).collection('scans').orderBy('ts','desc').limit(500).onSnapshot(function(snap){ var rows=[]; snap.forEach(function(d){ var x=d.data(); var dt = (x.ts && x.ts.toDate) ? x.ts.toDate() : new Date(); rows.push('<tr><td>'+fmt(dt)+'</td><td>'+esc(x.area||'')+'</td><td>'+esc(x.pos||'')+'</td><td>'+esc(x.code)+'</td><td>'+esc(x.mod||'')+'</td><td>'+esc(x.color||'')+'</td><td>'+esc(x.talla||'')+'</td><td>'+esc(x.user||x.operador||'')+'</td></tr>'); }); $('historyBody').innerHTML=rows.join(''); }); }
 
   // ===== GS1 mínima =====
-  function computeEAN13CheckDigit(d12){const a=d12.split('').map(Number);let s=0;for(let i=0;i<12;i++) s+=a[i]*(i%2?3:1);return String((10-(s%10))%10)}
-  function toEAN13FromGTIN14(gt){if(!/^\d{14}$/.test(gt)) return null; const b=gt.slice(1,13); return b+computeEAN13CheckDigit(b)}
-  function normalizeBarcode(raw){const s=String(raw).trim(); if(/^\d{13}$/.test(s)){const cd=computeEAN13CheckDigit(s.slice(0,12)); return {ean13:s.slice(0,12)+cd};} if(/^\d{12}$/.test(s)) return {ean13:'0'+s}; if(/^\d{14}$/.test(s)) return {ean13:toEAN13FromGTIN14(s)}; return {raw:s};}
+  function computeEAN13CheckDigit(d12){ var a=d12.split('').map(Number); var s=0; for(var i=0;i<12;i++) s+=a[i]*(i%2?3:1); return String((10-(s%10))%10); }
+  function toEAN13FromGTIN14(gt){ if(!/^\d{14}$/.test(gt)) return null; var b=gt.slice(1,13); return b+computeEAN13CheckDigit(b); }
+  function normalizeBarcode(raw){ var s=String(raw).trim(); if(/^\d{13}$/.test(s)){ var cd=computeEAN13CheckDigit(s.slice(0,12)); return {ean13:s.slice(0,12)+cd}; } if(/^\d{12}$/.test(s)) return {ean13:'0'+s}; if(/^\d{14}$/.test(s)) return {ean13:toEAN13FromGTIN14(s)}; return {raw:s}; }
 
-  // ===== Escáner (BarcodeDetector → Quagga fallback) =====
-  var scanning=false, activeTrack=null, TORCH=false, lastDetect=0;
-  var bdDetector=null, rafId=null, videoEl=null, canvasEl=null, ctx=null;
-
+  // ===== Escáner (BarcodeDetector → Quagga) =====
+  var scanning=false, activeTrack=null, TORCH=false, lastDetect=0; var bdDetector=null, rafId=null, videoEl=null, canvasEl=null, ctx=null;
   function hasBarcodeDetector(){ return ('BarcodeDetector' in window); }
-
-  function setupVideo(devId){
-    var constraints = { video: devId? {deviceId:{exact:devId}} : { facingMode:{ ideal:'environment' } } };
-    return navigator.mediaDevices.getUserMedia(constraints).then(function(stream){
-      var container = document.getElementById('interactive');
-      container.innerHTML='';
-      var v=document.createElement('video'); v.autoplay=true; v.playsInline=true; v.muted=true; v.style.width='100%'; v.style.height='100%'; v.srcObject=stream; container.appendChild(v);
-      activeTrack = stream.getVideoTracks()[0];
-      videoEl=v;
-      canvasEl=document.createElement('canvas'); ctx=canvasEl.getContext('2d');
-      return new Promise(function(res){ v.onloadedmetadata=function(){ v.play(); res(v); }; });
-    });
-  }
-
-  function startLoopDetect(){
-    function loop(){
-      if(!scanning) return;
-      if(videoEl && videoEl.readyState>=2){
-        var w = videoEl.videoWidth||640, h=videoEl.videoHeight||480; w=Math.min(640,w); h=Math.min(480,h);
-        canvasEl.width=w; canvasEl.height=h; ctx.drawImage(videoEl,0,0,w,h);
-        bdDetector.detect(canvasEl).then(function(codes){
-          if(!codes || !codes.length) return;
-          var now=Date.now(); if(now-lastDetect<400) return; lastDetect=now;
-          var code = (codes[0].rawValue||'').trim(); if(code) handleBarcode(code);
-        }).then(null,function(){});
-      }
-      rafId = requestAnimationFrame(loop);
-    }
-    loop();
-  }
-
-  function startNativeDetector(){
-    var devId=$('cameraSelect').value || undefined;
-    return setupVideo(devId).then(function(){
-      return (bdDetector? Promise.resolve(): (function(){ try{ bdDetector = new BarcodeDetector({formats:['ean_13','ean_8','upc_e','upc_a','code_128']}); return Promise.resolve(); }catch(e){ return Promise.reject(e); } })());
-    }).then(function(){ scanning=true; startLoopDetect(); }).then(null,function(e){ console.warn('BD falló, usando Quagga', e); return startQuagga(); });
-  }
-
-  function startQuagga(){
-    return new Promise(function(resolve){
-      if(!window.Quagga){ alert('Quagga no disponible'); resolve(); return; }
-      var devId=$('cameraSelect').value || undefined;
-      Quagga.init({ inputStream:{ name:'Live', type:'LiveStream', target: document.querySelector('#interactive'), constraints: devId? {deviceId:devId}:{ facingMode:'environment'} }, decoder:{ readers:['ean_reader','ean_8_reader','upc_reader','upc_e_reader','code_128_reader'] }, locate:true }, function(err){
-        if(err){ console.error(err); alert('No se pudo iniciar cámara'); resolve(); return; }
-        scanning=true; Quagga.start();
-        setTimeout(function(){ try{ var v=document.querySelector('#interactive video'); activeTrack=v && v.srcObject && v.srcObject.getVideoTracks ? v.srcObject.getVideoTracks()[0]:null; }catch(e){} },300);
-        Quagga.onDetected(function(res){ var now=Date.now(); if(now-lastDetect<400) return; lastDetect=now; var code=(res && res.codeResult && res.codeResult.code || '').trim(); if(code) handleBarcode(code); });
-        resolve();
-      });
-    });
-  }
-
+  function setupVideo(devId){ var constraints = { video: devId? {deviceId:{exact:devId}} : { facingMode:{ ideal:'environment' } } }; return navigator.mediaDevices.getUserMedia(constraints).then(function(stream){ var container = document.getElementById('interactive'); container.innerHTML=''; var v=document.createElement('video'); v.autoplay=true; v.playsInline=true; v.muted=true; v.style.width='100%'; v.style.height='100%'; v.srcObject=stream; container.appendChild(v); activeTrack = stream.getVideoTracks()[0]; videoEl=v; canvasEl=document.createElement('canvas'); ctx=canvasEl.getContext('2d'); return new Promise(function(res){ v.onloadedmetadata=function(){ v.play(); res(v); }; }); }); }
+  function startLoopDetect(){ function loop(){ if(!scanning) return; if(videoEl && videoEl.readyState>=2){ var w = videoEl.videoWidth||640, h=videoEl.videoHeight||480; w=Math.min(640,w); h=Math.min(480,h); canvasEl.width=w; canvasEl.height=h; ctx.drawImage(videoEl,0,0,w,h); bdDetector.detect(canvasEl).then(function(codes){ if(!codes || !codes.length) return; var now=Date.now(); if(now-lastDetect<400) return; lastDetect=now; var code = (codes[0].rawValue||'').trim(); if(code) handleBarcode(code); }).then(null,function(){}); } rafId = requestAnimationFrame(loop); } loop(); }
+  function startNativeDetector(){ var devId=$('cameraSelect').value || undefined; return setupVideo(devId).then(function(){ if(bdDetector) return; try{ bdDetector = new BarcodeDetector({formats:['ean_13','ean_8','upc_e','upc_a','code_128']}); }catch(e){ return Promise.reject(e); } }).then(function(){ scanning=true; startLoopDetect(); }).then(null,function(e){ console.warn('BD falló, usando Quagga', e); return startQuagga(); }); }
+  function startQuagga(){ return new Promise(function(resolve){ if(!window.Quagga){ alert('Quagga no disponible'); resolve(); return; } var devId=$('cameraSelect').value || undefined; Quagga.init({ inputStream:{ name:'Live', type:'LiveStream', target: document.querySelector('#interactive'), constraints: devId? {deviceId:devId}:{ facingMode:'environment'} }, decoder:{ readers:['ean_reader','ean_8_reader','upc_reader','upc_e_reader','code_128_reader'] }, locate:true }, function(err){ if(err){ console.error(err); alert('No se pudo iniciar cámara'); resolve(); return; } scanning=true; Quagga.start(); setTimeout(function(){ try{ var v=document.querySelector('#interactive video'); activeTrack=v && v.srcObject && v.srcObject.getVideoTracks ? v.srcObject.getVideoTracks()[0]:null; }catch(e){} },300); Quagga.onDetected(function(res){ var now=Date.now(); if(now-lastDetect<400) return; lastDetect=now; var code=(res && res.codeResult && res.codeResult.code || '').trim(); if(code) handleBarcode(code); }); resolve(); }); }); }
   on('btnRefreshCam','click',function(){ navigator.mediaDevices.enumerateDevices().then(function(list){ var cams=list.filter(function(d){return d.kind==='videoinput';}); $('cameraSelect').innerHTML=cams.map(function(d){ return '<option value="'+d.deviceId+'">'+(d.label||('Cam '+d.deviceId.slice(-4)))+'</option>'; }).join(''); }); });
   on('btnStart','click',function(){ if(scanning) return; (hasBarcodeDetector()? startNativeDetector(): startQuagga()).then(null,function(e){ console.error(e); alert('Permite el acceso a la cámara.'); }); });
   on('btnStop','click',stopScanner);
   on('btnTorch','click',function(){ try{ if(!activeTrack){ var v=document.querySelector('#interactive video'); if(v && v.srcObject && v.srcObject.getVideoTracks){ var t=v.srcObject.getVideoTracks(); activeTrack = (t && t[0]) ? t[0] : null; } } if(!activeTrack) return alert('Inicia la cámara'); TORCH=!TORCH; activeTrack.applyConstraints({advanced:[{torch: TORCH}]}); }catch(e){ alert('Linterna no soportada'); }});
-
-  function stopScanner(){ try{ if(rafId) cancelAnimationFrame(rafId); if(videoEl && videoEl.srcObject){ videoEl.srcObject.getTracks().forEach(function(t){t.stop();}); } if(window.Quagga){ try{ Quagga.stop(); }catch(e){} } }catch(e){} scanning=false; activeTrack=null; TORCH=false; }
-
   on('manualCode','keydown',function(e){ if(e.key==='Enter'){ var v=e.target.value.trim(); if(v) handleBarcode(v); e.target.value=''; }});
+  function stopScanner(){ try{ if(rafId) cancelAnimationFrame(rafId); if(videoEl && videoEl.srcObject){ videoEl.srcObject.getTracks().forEach(function(t){t.stop();}); } if(window.Quagga){ try{ Quagga.stop(); }catch(e){} } }catch(e){} scanning=false; activeTrack=null; TORCH=false; }
+  function handleBarcode(code){ if(!FOLIO_ID) return alert('Sin folio'); if(CATALOGO.byBarcode.size===0) return alert('Catálogo no cargado'); var n=normalizeBarcode(code); var key=n.ean13||code; var item = CATALOGO.byBarcode.get(key)||CATALOGO.byBarcode.get(String(code)); if(!item){ $('lastItem').textContent='No encontrado: '+code; return; } var area = (gv('scanArea')||'').trim(); var pos  = (gv('scanPos')||'').trim(); var user = (gv('scanOperador')||gv('operador')||(FOLIO_DOC&&FOLIO_DOC.createdBy)||'').trim(); var temporada = gv('scanTemporada')||(FOLIO_DOC&&FOLIO_DOC.temporada)||'TODAS'; registrarScan(item, code, {area:area,pos:pos,user:user,temporada:temporada}).then(function(){ $('lastItem').textContent = 'OK '+item.mod+' '+(item.color||'')+' '+(item.talla||'')+' ('+key+') — '+area+(pos?(' · '+pos):''); }); }
+  function registrarScan(item, code, meta){ var folio=db.collection('folios').doc(FOLIO_ID); var vkey=item.vkey||keyOf(item.mod,item.color,item.talla); return Promise.all([ folio.collection('counts').doc(vkey).set({ qty: firebase.firestore.FieldValue.increment(1) },{merge:true}), folio.collection('scans').add({ code:code, mod:item.mod, color:item.color||'', talla:item.talla||'', vkey:vkey, area:meta.area, pos:meta.pos, user:meta.user, temporada:meta.temporada, ts: firebase.firestore.FieldValue.serverTimestamp() }) ]).then(null,function(e){ console.error(e); alert('Error registrando'); }); }
 
   // ===== Reporte =====
-  on('btnRefrescarReporte','click', async ()=>{ await loadAggregatesByArea(); renderReport(); });
-  on('btnExportarCSV','click',()=>{
-    const rows = buildReportRows($('#groupMode').value==='area');
-    const csv = ['Area,Modelo,Color,Talla,Teorico,Escaneado,Diferencia']
-      .concat(rows.map(r=>[r.area||'',r.mod,r.color||'',r.talla||'',r.theo,r.scan,r.diff].join(',')))
-      .join('\n');
-    const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`reporte_${FOLIO_ID||'sin_folio'}.csv`; a.click(); URL.revokeObjectURL(a.href);
-  });
-  on('btnBorrarArea','click', async ()=>{
-    if(!FOLIO_ID) return alert('Sin folio');
-    const area=prompt('Área a borrar (borra todos los scans del área, máx 1000 docs por ejecución):');
-    if(!area) return; if(!confirm('¿Seguro de borrar scans del área '+area+'?')) return;
-    const q = await db.collection('folios').doc(FOLIO_ID).collection('scans').where('area','==',area).limit(1000).get();
-    const batch=db.batch(); q.forEach(d=>batch.delete(d.ref)); await batch.commit(); alert('Borrados: '+q.size);
-  });
-
-  function buildReportRows(byArea){
-    const ex = (FOLIO_DOC?.existenciasMap)||{};
-    const rows=[];
-    const modF = ($('#filtroModelo')?.value||'').trim().toUpperCase();
-    const colF = ($('#filtroColor')?.value||'').trim().toUpperCase();
-    const talF = ($('#filtroTalla')?.value||'').trim().toUpperCase();
-
-    if(byArea){
-      AGG_BY_AREA.forEach((mods, area)=>{
-        mods.forEach((scan, vkey)=>{
-          const {mod,color,talla}=splitKey(vkey);
-          if(modF && !mod.toUpperCase().includes(modF)) return;
-          if(colF && !(color||'').toUpperCase().includes(colF)) return;
-          if(talF && !(talla||'').toUpperCase().includes(talF)) return;
-          const theo = Number(ex[vkey]||0);
-          rows.push({ area, mod, color, talla, theo, scan, diff: scan - theo });
-        });
-      });
-      return rows.sort((a,b)=> (a.area||'').localeCompare(b.area||'') || a.mod.localeCompare(b.mod) || (a.color||'').localeCompare(b.color||'') || (a.talla||'').localeCompare(b.talla||''));
-    }
-    const set=new Set([ ...Object.keys(ex), ...COUNTS.keys() ]);
-    set.forEach(vkey=>{
-      const {mod,color,talla}=splitKey(vkey);
-      if(modF && !mod.toUpperCase().includes(modF)) return;
-      if(colF && !(color||'').toUpperCase().includes(colF)) return;
-      if(talF && !(talla||'').toUpperCase().includes(talF)) return;
-      const theo=Number(ex[vkey]||0); const scan=Number(COUNTS.get(vkey)||0);
-      rows.push({ area:'', mod, color, talla, theo, scan, diff:scan-theo });
-    });
-    return rows.sort((a,b)=>a.mod.localeCompare(b.mod) || (a.color||'').localeCompare(b.color||'') || (a.talla||'').localeCompare(b.talla||''));
-  }
-
-  async function loadAggregatesByArea(){
-    if(!FOLIO_ID){ AGG_BY_AREA=new Map(); return; }
-    AGG_BY_AREA=new Map();
-    const folio = db.collection('folios').doc(FOLIO_ID).collection('scans');
-    const page = 1000; let q = folio.orderBy('ts').limit(page); let last=null;
-    while(true){
-      const snap = await q.get(); if(snap.empty) break;
-      snap.forEach(doc=>{ const x=doc.data(); const area=(x.area||'').trim(); const vkey=x.vkey||keyOf(x.mod,x.color,x.talla); if(!AGG_BY_AREA.has(area)) AGG_BY_AREA.set(area,new Map()); const m=AGG_BY_AREA.get(area); m.set(vkey,(m.get(vkey)||0)+1); });
-      if(snap.size < page) break; last = snap.docs[snap.size-1]; q = folio.orderBy('ts').startAfter(last).limit(page);
-    }
-  }
-  function renderReport(){ const byArea=$('#groupMode').value==='area'; const rows=buildReportRows(byArea); $('reportBody').innerHTML = rows.map(r=>`<tr><td>${esc(r.area||'')}</td><td>${esc(r.mod)}</td><td>${esc(r.color||'')}</td><td>${esc(r.talla||'')}</td><td class=\"text-right\">${r.theo}</td><td class=\"text-right\">${r.scan}</td><td class=\"text-right ${r.diff===0?'':(r.diff>0?'text-emerald-600':'text-red-600')}\">${r.diff}</td></tr>`).join(''); }
+  on('btnRefrescarReporte','click', function(){ loadAggregatesByArea().then(renderReport); });
+  on('btnExportarCSV','click',function(){ var rows = buildReportRows($('#groupMode').value==='area'); var csv = ['Area,Modelo,Color,Talla,Teorico,Escaneado,Diferencia'].concat(rows.map(function(r){ return [r.area||'',r.mod,r.color||'',r.talla||'',r.theo,r.scan,r.diff].join(','); })).join('\n'); var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}); var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='reporte_'+(FOLIO_ID||'sin_folio')+'.csv'; a.click(); URL.revokeObjectURL(a.href); });
+  on('btnBorrarArea','click', function(){ if(!FOLIO_ID) return alert('Sin folio'); var area=prompt('Área a borrar (borra todos los scans del área, máx 1000 docs por ejecución):'); if(!area) return; if(!confirm('¿Seguro de borrar scans del área '+area+'?')) return; db.collection('folios').doc(FOLIO_ID).collection('scans').where('area','==',area).limit(1000).get().then(function(q){ var batch=db.batch(); q.forEach(function(d){ batch.delete(d.ref); }); return batch.commit().then(function(){ alert('Borrados: '+q.size); }); }); });
+  function buildReportRows(byArea){ var ex = (FOLIO_DOC && FOLIO_DOC.existenciasMap) || {}; var rows=[]; var modF = (gv('filtroModelo')||'').trim().toUpperCase(); var colF = (gv('filtroColor')||'').trim().toUpperCase(); var talF = (gv('filtroTalla')||'').trim().toUpperCase(); if(byArea){ AGG_BY_AREA.forEach(function(mods, area){ mods.forEach(function(scan, vkey){ var s=splitKey(vkey); if(modF && s.mod.toUpperCase().indexOf(modF)===-1) return; if(colF && String(s.color||'').toUpperCase().indexOf(colF)===-1) return; if(talF && String(s.talla||'').toUpperCase().indexOf(talF)===-1) return; var theo = Number(ex[vkey]||0); rows.push({ area:area, mod:s.mod, color:s.color, talla:s.talla, theo:theo, scan:scan, diff: scan - theo }); }); }); return rows.sort(function(a,b){ return (a.area||'').localeCompare(b.area||'') || a.mod.localeCompare(b.mod) || String(a.color||'').localeCompare(String(b.color||'')) || String(a.talla||'').localeCompare(String(b.talla||'')); }); } var set=new Set(Object.keys(ex)); COUNTS.forEach(function(v,k){ set.add(k); }); set.forEach(function(vkey){ var s=splitKey(vkey); if(modF && s.mod.toUpperCase().indexOf(modF)===-1) return; if(colF && String(s.color||'').toUpperCase().indexOf(colF)===-1) return; if(talF && String(s.talla||'').toUpperCase().indexOf(talF)===-1) return; var theo=Number(ex[vkey]||0); var scan=Number(COUNTS.get(vkey)||0); rows.push({ area:'', mod:s.mod, color:s.color, talla:s.talla, theo:theo, scan:scan, diff:scan-theo }); }); return rows.sort(function(a,b){ return a.mod.localeCompare(b.mod) || String(a.color||'').localeCompare(String(b.color||'')) || String(a.talla||'').localeCompare(String(b.talla||'')); }); }
+  function loadAggregatesByArea(){ if(!FOLIO_ID){ AGG_BY_AREA=new Map(); return Promise.resolve(); } AGG_BY_AREA=new Map(); var folio = db.collection('folios').doc(FOLIO_ID).collection('scans'); var page = 1000; var q = folio.orderBy('ts').limit(page); var last=null; function loop(){ return q.get().then(function(snap){ if(snap.empty) return; snap.forEach(function(doc){ var x=doc.data(); var area=(x.area||'').trim(); var vkey=x.vkey||keyOf(x.mod,x.color,x.talla); if(!AGG_BY_AREA.has(area)) AGG_BY_AREA.set(area,new Map()); var m=AGG_BY_AREA.get(area); m.set(vkey,(m.get(vkey)||0)+1); }); if(snap.size < page) return; last = snap.docs[snap.size-1]; q = folio.orderBy('ts').startAfter(last).limit(page); return loop(); }); } return loop(); }
+  function renderReport(){ var byArea=$('groupMode').value==='area'; var rows=buildReportRows(byArea); $('reportBody').innerHTML = rows.map(function(r){ return '<tr><td>'+esc(r.area||'')+'</td><td>'+esc(r.mod)+'</td><td>'+esc(r.color||'')+'</td><td>'+esc(r.talla||'')+'</td><td class="text-right">'+r.theo+'</td><td class="text-right">'+r.scan+'</td><td class="text-right '+(r.diff===0?'':(r.diff>0?'text-emerald-600':'text-red-600'))+'">'+r.diff+'</td></tr>'; }).join(''); }
 
   // ===== Inicio =====
-  window.addEventListener('DOMContentLoaded',()=>{
-    const folioParam=new URL(location.href).searchParams.get('folio'); if(folioParam) $('joinFolioId').value=folioParam;
-    cargarCatalogo(false);
-  });
+  window.addEventListener('DOMContentLoaded',function(){ var folioParam=new URL(location.href).searchParams.get('folio'); if(folioParam) $('joinFolioId').value=folioParam; cargarCatalogo(false); });
 })();
 </script>
 </body>
