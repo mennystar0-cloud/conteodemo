@@ -329,7 +329,6 @@
     var saveOn = (savePref!==null) ? (savePref==='1') : (window.innerWidth < 768);
     setBatterySave(saveOn); if($('toggleSave')) $('toggleSave').checked=saveOn;
   });
-  });
 
   // ===== XLSX ensure (fallback si no carga el local incluido en <head>) =====
   function loadScript(url){ return new Promise(function(res,rej){ var s=document.createElement('script'); s.src=url; s.onload=res; s.onerror=function(){rej(new Error('No se pudo cargar: '+url));}; document.head.appendChild(s); }); }
