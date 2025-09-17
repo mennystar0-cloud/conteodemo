@@ -301,8 +301,46 @@
 
   // ===== Tabs & persistentes =====
   function showTab(name){ ['importar','existencias','folio','escanear','reporte','consulta','historial'].forEach(t=>{ const el=$('tab-'+t); if(!el) return; el.classList.toggle('hidden',t!==name); el.classList.toggle('block',t===name); }); }
-  window.addEventListener('DOMContentLoaded',()=>{
-    const tabs=document.querySelectorAll('#tabs [data-tab]');
+  window.addEventListener('DOMContentLoaded', function(){
+    var tabs=document.querySelectorAll('#tabs [data-tab]');
+    for(var i=0;i<tabs.length;i++){
+      (function(btn){
+        btn.addEventListener('click', function(){
+          for(var j=0;j<tabs.length;j++){
+            tabs[j].classList.remove('border-blue-600');
+            tabs[j].classList.remove('text-blue-600');
+          }
+          btn.classList.add('border-blue-600');
+          btn.classList.add('text-blue-600');
+          showTab(btn.getAttribute('data-tab'));
+        });
+      })(tabs[i]);
+    }
+    var isStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone;
+    if (isStandalone || window.innerWidth < 768) { showTab('escanear'); } else { showTab('importar'); }
+    var ids=['operador','almacen','temporada','scanArea','scanPos','scanOperador'];
+    for(var k=0;k<ids.length;k++){
+      var el=$(ids[k]); if(!el) continue; var v=localStorage.getItem('cc-'+ids[k]); if(v!==null) el.value=v;
+      el.addEventListener('input', function(e){ localStorage.setItem('cc-'+e.target.id, e.target.value); });
+      el.addEventListener('change', function(e){ localStorage.setItem('cc-'+e.target.id, e.target.value); });
+    }
+    var xlPref = localStorage.getItem('cc-mode-xl');
+    var autoXL = (isStandalone || window.innerWidth < 768);
+    var xlOn = (xlPref!==null) ? (xlPref==='1') : autoXL;
+    document.documentElement.classList.toggle('mode-xl', !!xlOn);
+    if($('toggleXL')) $('toggleXL').checked=!!xlOn;
+    localStorage.setItem('cc-mode-xl', !!xlOn?'1':'0');
+    var savePref = localStorage.getItem('cc-battery-save');
+    var saveOn = (savePref!==null) ? (savePref==='1') : (window.innerWidth < 768);
+    setBatterySave(!!saveOn);
+    if($('toggleSave')) $('toggleSave').checked=!!saveOn;
+    var mutePref = localStorage.getItem('cc-mute');
+    var muteOn = (mutePref!==null) ? (mutePref==='1') : document.documentElement.classList.contains('mode-xl');
+    MUTE = !!muteOn; if($('toggleMute')) $('toggleMute').checked = !!muteOn;
+    var cdPref = localStorage.getItem('cc-cooldown');
+    COOLDOWN_MS = isNaN(parseInt(cdPref||'',10)) ? 800 : parseInt(cdPref,10);
+    if($('cooldownMs')) $('cooldownMs').value = COOLDOWN_MS;
+  });
     tabs.forEach(btn=>btn.addEventListener('click',()=>{ tabs.forEach(b=>b.classList.remove('border-blue-600','text-blue-600')); btn.classList.add('border-blue-600','text-blue-600'); showTab(btn.dataset.tab); }));
     const isStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone; if (isStandalone || window.innerWidth < 768) { showTab('escanear'); } else { showTab('importar'); }
     ['operador','almacen','temporada','scanArea','scanPos','scanOperador'].forEach(id=>{ const el=$(id); if(!el) return; const v=localStorage.getItem('cc-'+id); if(v!==null) el.value=v; el.addEventListener('input',e=>localStorage.setItem('cc-'+id,e.target.value)); el.addEventListener('change',e=>localStorage.setItem('cc-'+id,e.target.value)); });
