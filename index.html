@@ -137,6 +137,10 @@
       <div class="flex flex-wrap items-center gap-3 mb-3 text-sm">
         <label class="flex items-center gap-2"><input id="toggleXL" type="checkbox" class="h-4 w-4">Modo tienda (alto contraste / XL)</label>
         <label class="flex items-center gap-2"><input id="toggleSave" type="checkbox" class="h-4 w-4">Ahorro de batería (menos FPS)</label>
+        <label class="flex items-center gap-2"><input id="toggleMute" type="checkbox" class="h-4 w-4">Silencio (sin beep/vibración)</label>
+        <label class="flex items-center gap-2">Cooldown
+          <input id="cooldownMs" type="number" min="0" step="100" value="800" class="border p-1 rounded w-24"> ms
+        </label>
         <span id="fpsBadge" class="badge bg-gray-100">FPS: --</span>
         <span class="text-xs text-gray-500">Se guarda en este dispositivo</span>
       </div>
@@ -305,6 +309,13 @@
     // Modo tienda & ahorro
     let xlPref = localStorage.getItem('cc-mode-xl'); let autoXL = (isStandalone || window.innerWidth < 768); let xlOn = (xlPref!==null) ? (xlPref==='1') : autoXL; document.documentElement.classList.toggle('mode-xl', xlOn); if($('toggleXL')) $('toggleXL').checked=xlOn; localStorage.setItem('cc-mode-xl', xlOn?'1':'0');
     const savePref = localStorage.getItem('cc-battery-save'); const saveOn = (savePref!==null) ? (savePref==='1') : (window.innerWidth < 768); setBatterySave(saveOn); if($('toggleSave')) $('toggleSave').checked=saveOn;
+    // Preferencias de silencio y cooldown
+    const mutePref = localStorage.getItem('cc-mute');
+    const muteOn = (mutePref!==null) ? (mutePref==='1') : document.documentElement.classList.contains('mode-xl');
+    MUTE = muteOn; if($('toggleMute')) $('toggleMute').checked = muteOn;
+    const cdPref = localStorage.getItem('cc-cooldown');
+    COOLDOWN_MS = isNaN(parseInt(cdPref||'')) ? 800 : parseInt(cdPref,10);
+    if($('cooldownMs')) $('cooldownMs').value = COOLDOWN_MS; setBatterySave(saveOn); if($('toggleSave')) $('toggleSave').checked=saveOn;
   });
 
   // ===== XLSX fallback =====
@@ -367,9 +378,23 @@
   function normalizeBarcode(raw){const s=String(raw).trim(); if(/^\d{13}$/.test(s)){const cd=computeEAN13CheckDigit(s.slice(0,12)); return {ean13:s.slice(0,12)+cd};} if(/^\d{12}$/.test(s)) return {ean13:'0'+s}; if(/^\d{14}$/.test(s)) return {ean13:toEAN13FromGTIN14(s)}; return {raw:s};}
 
   // ===== Haptic/Beep + FPS =====
+  let MUTE=false; // preferencia de tienda
+  let COOLDOWN_MS=800; // antirrebote por producto
+  const LAST_SEEN=new Map(); // vkey -> timestamp ms
   let audioCtx=null; function ensureAudio(){ try{ if(!audioCtx){ const AC=window.AudioContext||window.webkitAudioContext; if(AC) audioCtx=new AC(); } }catch(e){} }
-  function beep(freq, ms){ if(!audioCtx) return; try{ const o=audioCtx.createOscillator(); const g=audioCtx.createGain(); o.frequency.value=freq; g.gain.value=0.045; o.connect(g); g.connect(audioCtx.destination); o.start(); setTimeout(()=>{ try{o.stop();}catch(_){} }, ms||80); }catch(_){} }
-  function haptic(pattern){ try{ if(navigator.vibrate) navigator.vibrate(pattern||25); }catch(_){} }
+  function beep(freq, ms){
+    if(MUTE) return; // evitar sonidos en tienda
+    if(!audioCtx) return;
+    try{
+      const o=audioCtx.createOscillator();
+      const g=audioCtx.createGain();
+      o.frequency.value=freq; g.gain.value=0.045;
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start();
+      setTimeout(()=>{ try{o.stop();}catch(_){} }, ms||80);
+    }catch(_){ }
+  }
+  function haptic(pattern){ if(MUTE) return; try{ if(navigator.vibrate) navigator.vibrate(pattern||25); }catch(_){ } }
   const fpsTicker={on:false}; let fpsRaf=0, fpsCnt=0, fpsLast=0; function startFpsMonitor(){ if(fpsTicker.on) return; fpsTicker.on=true; fpsCnt=0; fpsLast=performance.now(); const step=(t)=>{ if(!fpsTicker.on) return; fpsCnt++; if(t - fpsLast >= 1000){ const el=$('fpsBadge'); if(el) el.textContent='FPS: '+fpsCnt; fpsCnt=0; fpsLast=t; } fpsRaf=requestAnimationFrame(step); }; fpsRaf=requestAnimationFrame(step);} function stopFpsMonitor(){ if(fpsRaf) cancelAnimationFrame(fpsRaf); fpsTicker.on=false; const el=$('fpsBadge'); if(el) el.textContent='FPS: --'; }
 
   // ===== Escáner (BarcodeDetector → Quagga) =====
@@ -420,12 +445,45 @@
   } if(v && v.srcObject && v.srcObject.getVideoTracks){ const t=v.srcObject.getVideoTracks(); activeTrack=(t && t[0])? t[0]:null; } } if(!activeTrack) return alert('Inicia la cámara'); const caps=activeTrack.getCapabilities && activeTrack.getCapabilities(); if(!caps || !caps.torch) return alert('Linterna no soportada'); TORCH=!TORCH; activeTrack.applyConstraints({advanced:[{torch: TORCH}]}); }catch(e){ alert('Linterna no soportada'); }});
   on('toggleXL','change', e=>{ const on=e.target.checked; document.documentElement.classList.toggle('mode-xl', on); localStorage.setItem('cc-mode-xl', on?'1':'0'); });
   on('toggleSave','change', e=>{ const on=e.target.checked; const was=scanning; setBatterySave(on); if(was){ stopScanner(); (hasBarcodeDetector()? startNativeDetector(): startQuagga()); } });
+  on('toggleMute','change', e=>{ MUTE=!!e.target.checked; localStorage.setItem('cc-mute', MUTE?'1':'0'); });
+  on('cooldownMs','change', e=>{ let v=parseInt(e.target.value,10); if(isNaN(v)||v<0) v=0; COOLDOWN_MS=v; localStorage.setItem('cc-cooldown', String(v)); }); if(was){ stopScanner(); (hasBarcodeDetector()? startNativeDetector(): startQuagga()); } });
   document.addEventListener('visibilitychange', ()=>{ if(document.hidden && scanning){ stopScanner(); } });
 
   // ===== Registro de scan =====
   async function registrarScan(item, code, meta){ if(!FOLIO_ID) throw new Error('No folio'); const refFol=db.collection('folios').doc(FOLIO_ID); const vkey=item.vkey||keyOf(item.mod,item.color,item.talla); const scanDoc={ ts: firebase.firestore.FieldValue.serverTimestamp(), code:String(code), vkey, mod:item.mod, color:item.color||'', talla:item.talla||'', area:meta.area||'', pos:meta.pos||'', user:meta.user||meta.operador||'', temporada:meta.temporada||'' }; await refFol.collection('scans').add(scanDoc); await refFol.collection('counts').doc(vkey).set({qty: firebase.firestore.FieldValue.increment(1)}, {merge:true}); }
   function handleBarcode(code){
     if(!FOLIO_ID){ beep(220,120); haptic([60]); return alert('Sin folio'); }
+    if(CATALOGO.byBarcode.size===0){ beep(220,120); haptic([60]); return alert('Catálogo no cargado'); }
+    const n=normalizeBarcode(code);
+    const key=n.ean13||code;
+    const item=CATALOGO.byBarcode.get(key)||CATALOGO.byBarcode.get(String(code));
+    if(!item){ $('lastItem').textContent='No encontrado: '+code; beep(220,140); haptic([40,60,40]); return; }
+    const area=($('#scanArea')?.value||'').trim();
+    const pos =($('#scanPos')?.value||'').trim();
+    const user=($('#scanOperador')?.value||$('#operador')?.value||(FOLIO_DOC&&FOLIO_DOC.createdBy)||'').trim();
+    const temporada=FOLIO_DOC?.temporada||'TODAS';
+    const vkey=item.vkey||keyOf(item.mod,item.color,item.talla);
+    const now=Date.now();
+    const last=LAST_SEEN.get(vkey)||0;
+    if(now - last < COOLDOWN_MS){
+      $('lastItem').innerHTML = `<span class='text-xs text-gray-500'>Ignorado por cooldown (${now-last}ms &lt; ${COOLDOWN_MS}ms): ${esc(vkey)}</span>`;
+      return;
+    }
+    LAST_SEEN.set(vkey, now);
+    registrarScan(item, code, {area,pos,user,temporada}).then(()=>{
+      const theo = Number((FOLIO_DOC && FOLIO_DOC.existenciasMap && FOLIO_DOC.existenciasMap[vkey]) || 0);
+      const nextScan = Number((COUNTS.get(vkey)||0) + 1);
+      const diff = nextScan - theo;
+      COUNTS.set(vkey, nextScan);
+      $('lastItem').innerHTML = `
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="font-semibold">OK ${esc(item.mod)} ${esc(item.color||'')} ${esc(item.talla||'')}</span>
+          <span class="text-xs">(${esc(vkey)}) — ${esc(area)}${pos?(' · '+esc(pos)) : ''}</span>
+          <span class="ml-2 badge ${diff===0?'bg-gray-100':(diff>0?'bg-green-100 text-emerald-700':'bg-red-100 text-red-700')}">Teo: ${theo} · Scan: ${nextScan} · Dif: ${diff}</span>
+        </div>`;
+      beep(1000,70); haptic(25);
+    });
+  }
     if(CATALOGO.byBarcode.size===0){ beep(220,120); haptic([60]); return alert('Catálogo no cargado'); }
     const n=normalizeBarcode(code);
     const key=n.ean13||code;
