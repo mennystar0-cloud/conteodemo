@@ -332,7 +332,16 @@
 
   // ===== Folio =====
   let FOLIO_ID=null; let FOLIO_DOC=null; let COUNTS=new Map(); let AGG_BY_AREA=new Map();
-  async function nextFolioNumber(){ const ref=db.collection('meta').doc('counters'); const n=await db.runTransaction(async tx=>{ const snap=await tx.get(ref); const cur=snap.exists?(snap.data().nextFolio||1):1; tx.set(ref,{nextFolio:cur+1},{merge:true}); return cur; }); return n; }
+  function nextFolioNumber(){
+    const ref=db.collection('meta').doc('counters');
+    return db.runTransaction(function(tx){
+      return tx.get(ref).then(function(snap){
+        const cur = snap.exists ? (snap.data().nextFolio||1) : 1;
+        tx.set(ref,{nextFolio:cur+1},{merge:true});
+        return cur;
+      });
+    });
+  },{merge:true}); return cur; }); return n; }
   function req(input,msg){
     var val;
     if (typeof input === 'string') { val = input; }
@@ -342,18 +351,53 @@
     if(!s){ alert(msg); throw new Error(msg); }
     return s;
   } return val.trim(); }
-  async function crearFolio(){ try{ const name=($('#folioName')?.value||'Cíclico').trim()||'Cíclico'; const operador=req($('#operador'),'Indica quién realiza el cíclico'); const almacen=req($('#almacen'),'Indica el tipo de almacén'); const temporada=$('#temporada')?.value||'TODAS'; const number=await nextFolioNumber(); const id=String(number).padStart(6,'0'); const ref=db.collection('folios').doc(id); await ref.set({ id, number, name, createdBy:operador, almacen, temporada, state:'open', existenciasMap:{}, createdAt: firebase.firestore.FieldValue.serverTimestamp() }); await activarFolio(id); }catch(e){ console.warn(e.message||e); }}
-  async function activarFolio(id){ const snap=await db.collection('folios').doc(id).get(); if(!snap.exists) return alert('Folio no encontrado'); FOLIO_ID=id; FOLIO_DOC=snap.data(); $('envInfo').textContent='Folio '+id; $('joinFolioId').value=id; const dt=FOLIO_DOC.createdAt?.toDate?FOLIO_DOC.createdAt.toDate():new Date(); $('folioFecha').textContent=fmt(dt); $('folioStatus').innerHTML=`Folio: <b>${id}</b> — ${esc(FOLIO_DOC.name||'')} · Operador: ${esc(FOLIO_DOC.createdBy||'')} · Almacén: ${esc(FOLIO_DOC.almacen||'')} · Temporada: ${esc(FOLIO_DOC.temporada||'')}`; document.title='Folio '+id+' · Conteo Cíclico'; subscribeCounts(); subscribeScans(); }
-  async function unirseFolio(){ const id=($('#joinFolioId')?.value||'').trim(); if(!id) return; await activarFolio(id); }
+  function crearFolio(){
+    try{
+      const name=($('#folioName')?.value||'Cíclico').trim()||'Cíclico';
+      const operador=req($('#operador'),'Indica quién realiza el cíclico');
+      const almacen=req($('#almacen'),'Indica el tipo de almacén');
+      const temporada=$('#temporada')?.value||'TODAS';
+      return nextFolioNumber().then(function(number){
+        const id=String(number).padStart(6,'0');
+        const ref=db.collection('folios').doc(id);
+        return ref.set({ id, number, name, createdBy:operador, almacen, temporada, state:'open', existenciasMap:{}, createdAt: firebase.firestore.FieldValue.serverTimestamp() })
+          .then(function(){ return activarFolio(id); });
+      }).catch(function(e){ console.warn(e && e.message ? e.message : e); });
+    }catch(e){ console.warn(e && e.message ? e.message : e); return Promise.resolve(); }
+  }, createdAt: firebase.firestore.FieldValue.serverTimestamp() }); await activarFolio(id); }catch(e){ console.warn(e.message||e); }}
+  function activarFolio(id){
+    return db.collection('folios').doc(id).get().then(function(snap){
+      if(!snap.exists){ alert('Folio no encontrado'); return; }
+      FOLIO_ID=id; FOLIO_DOC=snap.data();
+      $('envInfo').textContent='Folio '+id;
+      $('joinFolioId').value=id;
+      const dt=FOLIO_DOC.createdAt?.toDate?FOLIO_DOC.createdAt.toDate():new Date();
+      $('folioFecha').textContent=fmt(dt);
+      $('folioStatus').innerHTML=`Folio: <b>${id}</b> — ${esc(FOLIO_DOC.name||'')} · Operador: ${esc(FOLIO_DOC.createdBy||'')} · Almacén: ${esc(FOLIO_DOC.almacen||'')} · Temporada: ${esc(FOLIO_DOC.temporada||'')}`;
+      document.title='Folio '+id+' · Conteo Cíclico';
+      subscribeCounts(); subscribeScans();
+    });
+  }</b> — ${esc(FOLIO_DOC.name||'')} · Operador: ${esc(FOLIO_DOC.createdBy||'')} · Almacén: ${esc(FOLIO_DOC.almacen||'')} · Temporada: ${esc(FOLIO_DOC.temporada||'')}`; document.title='Folio '+id+' · Conteo Cíclico'; subscribeCounts(); subscribeScans(); }
+  function unirseFolio(){ const id=($('#joinFolioId')?.value||'').trim(); if(!id) return; return activarFolio(id); }
   on('btnCrearFolio','click',crearFolio);
   on('btnUnirseFolio','click',unirseFolio);
   on('btnCopiarLink','click',()=>{ if(!FOLIO_ID) return; const u=new URL(location.href); u.searchParams.set('folio',FOLIO_ID); navigator.clipboard.writeText(u.toString()); alert('Link copiado'); });
-  on('btnCerrarFolio','click',async()=>{ if(!FOLIO_ID) return; await db.collection('folios').doc(FOLIO_ID).update({state:'closed'}); alert('Folio cerrado'); });
+  on('btnCerrarFolio','click', function(){ if(!FOLIO_ID) return; db.collection('folios').doc(FOLIO_ID).update({state:'closed'}).then(function(){ alert('Folio cerrado'); }); }); alert('Folio cerrado'); });
 
   // ===== Existencias =====
   on('btnLimpiarExist','click',()=>{ $('existText').value=''; $('existStatus').textContent='—'; $('existPreview').innerHTML=''; });
   on('btnValidarExist','click',()=>renderExistPreview(parseExistencias($('existText').value||'')));
-  on('btnCargarExist','click',async()=>{ try{ if(!FOLIO_ID) return alert('Crea/Activa un folio'); const res=parseExistencias($('existText').value||''); const map=res.map; if(Object.keys(map).length===0) return alert('No hay líneas válidas'); await db.collection('folios').doc(FOLIO_ID).set({ existenciasMap: map, updatedAt: firebase.firestore.FieldValue.serverTimestamp() },{merge:true}); $('existStatus').textContent=`Cargadas ${Object.keys(map).length} variantes (pzs: ${res.total})`; }catch(e){ console.error(e); $('existStatus').textContent='Error: '+(e.message||e); } });
+  on('btnCargarExist','click',function(){
+    try{
+      if(!FOLIO_ID) return alert('Crea/Activa un folio');
+      const res=parseExistencias($('existText').value||'');
+      const map=res.map; if(Object.keys(map).length===0) return alert('No hay líneas válidas');
+      db.collection('folios').doc(FOLIO_ID)
+        .set({ existenciasMap: map, updatedAt: firebase.firestore.FieldValue.serverTimestamp() },{merge:true})
+        .then(function(){ $('existStatus').textContent=`Cargadas ${Object.keys(map).length} variantes (pzs: ${res.total})`; })
+        .catch(function(e){ console.error(e); $('existStatus').textContent='Error: '+(e.message||e); });
+    }catch(e){ console.error(e); $('existStatus').textContent='Error: '+(e.message||e); }
+  }); $('existStatus').textContent=`Cargadas ${Object.keys(map).length} variantes (pzs: ${res.total})`; }catch(e){ console.error(e); $('existStatus').textContent='Error: '+(e.message||e); } });
   function parseExistencias(text){ const out={}, bad=[]; const lines=(text||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean); for(let i=0;i<lines.length;i++){ const ln=lines[i]; const parts=ln.split(','); if(parts.length===4){ const mod=parts[0].trim(); const color=parts[1].trim(); const talla=parts[2].trim(); const qty=parseInt(String(parts[3]).trim(),10); if(mod && color && talla && !isNaN(qty)){ const k=keyOf(mod,color,talla); out[k]=(out[k]||0)+qty; continue; } } if(ln.indexOf(',')>=0){ const first=ln.indexOf(','); const mod2=ln.slice(0,first).trim(); const rest=ln.slice(first+1).trim(); const mQty=rest.match(/(\d+)\s*$/); if(mQty){ const qty2=parseInt(mQty[1],10); const rest2=rest.slice(0,mQty.index).trim(); const mTalla=rest2.match(/([A-Za-z0-9_.\-]+)\s*$/); if(mTalla){ const talla2=mTalla[1]; const color2=rest2.slice(0,rest2.length-mTalla[0].length).trim(); if(mod2 && color2 && talla2 && !isNaN(qty2)){ const k2=keyOf(mod2,color2,talla2); out[k2]=(out[k2]||0)+qty2; continue; } } } } bad.push({line:i+1, text:ln}); } let total=0; Object.keys(out).forEach(k=>{ total+=out[k]; }); return {map:out, bad:bad, total:total}; }
   function renderExistPreview(res){ const rows=Object.entries(res.map).slice(0,600).map(([k,qty])=>{ const {mod,color,talla}=splitKey(k); return `<tr><td>${esc(mod)}</td><td>${esc(color)}</td><td>${esc(talla)}</td><td class=\"text-right\">${qty}</td></tr>`; }).join(''); const bads=res.bad.map(b=>`<li>L${b.line}: ${esc(b.text)}</li>`).join(''); $('existPreview').innerHTML = `\
     <div class='mt-2'>\
@@ -415,10 +459,39 @@
   on('btnTorch','click',()=>{ try{ if(!activeTrack){ const v=document.querySelector('#interactive video'); if(v && v.srcObject && v.srcObject.getVideoTracks){ const t=v.srcObject.getVideoTracks(); activeTrack=(t && t[0])? t[0]:null; } } if(!activeTrack) return alert('Inicia la cámara'); const caps=activeTrack.getCapabilities && activeTrack.getCapabilities(); if(!caps || !caps.torch) return alert('Linterna no soportada'); TORCH=!TORCH; activeTrack.applyConstraints({advanced:[{torch: TORCH}]}); }catch(e){ alert('Linterna no soportada'); }});
   on('btnDiag','click',()=>{ const m=$('diagModal'); if(m){ m.classList.remove('hidden'); runDiagnostics(); } });
   on('btnDiagClose','click',()=>{ const m=$('diagModal'); if(m) m.classList.add('hidden'); });
-  async function runDiagnostics(){
+  function runDiagnostics(){
     const lines=[];
     try{
-      lines.push(`Origen: ${location.origin}`);
+      lines.push('Origen: '+location.origin);
+      lines.push('Contexto seguro: '+window.isSecureContext);
+      const dm = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone;
+      lines.push('PWA (standalone): '+ (!!dm));
+      lines.push('BarcodeDetector: '+ ('BarcodeDetector' in window));
+      var promises=[];
+      if ('BarcodeDetector' in window && window.BarcodeDetector.getSupportedFormats){
+        try{ promises.push(window.BarcodeDetector.getSupportedFormats().then(function(fmts){ lines.push('Formatos BD: '+fmts.join(', ')); })); }catch(_){ }
+      }
+      if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices){
+        promises.push(navigator.mediaDevices.enumerateDevices().then(function(list){
+          const cams = list.filter(function(d){return d.kind==='videoinput';});
+          lines.push('Cámaras: '+cams.length);
+          cams.forEach(function(c,i){ lines.push('  ['+i+'] '+(c.label||('Cam '+String(c.deviceId||'').slice(-4)))); });
+        }));
+      }
+      if (activeTrack && activeTrack.getCapabilities){
+        try{
+          const caps = activeTrack.getCapabilities();
+          lines.push('Torch soportado: '+ (!!caps.torch));
+          if (caps.focusMode) lines.push('Enfoque: '+JSON.stringify(caps.focusMode));
+        }catch(_){}
+      } else {
+        lines.push('Torch soportado: (iniciar cámara para verificar)');
+      }
+      Promise.all(promises).then(function(){ $('diagContent').textContent = lines.join('
+'); });
+    }catch(e){ lines.push('Error diag: '+(e.message||e)); $('diagContent').textContent = lines.join('
+'); }
+  }`);
       lines.push(`Contexto seguro: ${window.isSecureContext}`);
       const dm = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone;
       lines.push(`PWA (standalone): ${!!dm}`);
@@ -450,7 +523,14 @@
   document.addEventListener('visibilitychange', ()=>{ if(document.hidden && scanning){ stopScanner(); } });
 
   // ===== Registro de scan =====
-  async function registrarScan(item, code, meta){ if(!FOLIO_ID) throw new Error('No folio'); const refFol=db.collection('folios').doc(FOLIO_ID); const vkey=item.vkey||keyOf(item.mod,item.color,item.talla); const scanDoc={ ts: firebase.firestore.FieldValue.serverTimestamp(), code:String(code), vkey, mod:item.mod, color:item.color||'', talla:item.talla||'', area:meta.area||'', pos:meta.pos||'', user:meta.user||meta.operador||'', temporada:meta.temporada||'' }; await refFol.collection('scans').add(scanDoc); await refFol.collection('counts').doc(vkey).set({qty: firebase.firestore.FieldValue.increment(1)}, {merge:true}); }
+  function registrarScan(item, code, meta){
+    if(!FOLIO_ID) return Promise.reject(new Error('No folio'));
+    const refFol = db.collection('folios').doc(FOLIO_ID);
+    const vkey = item.vkey || keyOf(item.mod,item.color,item.talla);
+    const scanDoc = { ts: firebase.firestore.FieldValue.serverTimestamp(), code:String(code), vkey:vkey, mod:item.mod, color:item.color||'', talla:item.talla||'', area:meta.area||'', pos:meta.pos||'', user:meta.user||meta.operador||'', temporada:meta.temporada||'' };
+    return refFol.collection('scans').add(scanDoc)
+      .then(function(){ return refFol.collection('counts').doc(vkey).set({qty: firebase.firestore.FieldValue.increment(1)}, {merge:true}); });
+  }; await refFol.collection('scans').add(scanDoc); await refFol.collection('counts').doc(vkey).set({qty: firebase.firestore.FieldValue.increment(1)}, {merge:true}); }
   function handleBarcode(code){
     if(!FOLIO_ID){ beep(220,120); haptic([60]); return alert('Sin folio'); }
     if(CATALOGO.byBarcode.size===0){ beep(220,120); haptic([60]); return alert('Catálogo no cargado'); }
@@ -511,11 +591,33 @@
   on('manualCode','keydown',e=>{ if(e.key==='Enter'){ const v=e.target.value.trim(); if(v) handleBarcode(v); e.target.value=''; }});
 
   // ===== Reporte =====
-  on('btnRefrescarReporte','click', async ()=>{ await loadAggregatesByArea(); renderReport(); });
+  on('btnRefrescarReporte','click', function(){ loadAggregatesByArea().then(renderReport); }); renderReport(); });
   on('btnExportarCSV','click',()=>{ const rows = buildReportRows($('groupMode').value==='area'); const csv=['Area,Modelo,Color,Talla,Teorico,Escaneado,Diferencia'].concat(rows.map(r=>[r.area||'',r.mod,r.color||'',r.talla||'',r.theo,r.scan,r.diff].join(','))).join('\n'); const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`reporte_${FOLIO_ID||'sin_folio'}.csv`; a.click(); URL.revokeObjectURL(a.href); });
-  on('btnBorrarArea','click', async ()=>{ if(!FOLIO_ID) return alert('Sin folio'); const area=prompt('Área a borrar (máx 1000 docs por ejecución):'); if(!area) return; if(!confirm('¿Seguro de borrar scans del área '+area+'?')) return; const q=await db.collection('folios').doc(FOLIO_ID).collection('scans').where('area','==',area).limit(1000).get(); const batch=db.batch(); q.forEach(d=>batch.delete(d.ref)); await batch.commit(); alert('Borrados: '+q.size); });
+  on('btnBorrarArea','click', function(){
+    if(!FOLIO_ID) return alert('Sin folio');
+    const area=prompt('Área a borrar (borra todos los scans del área, máx 1000 docs por ejecución):');
+    if(!area) return; if(!confirm('¿Seguro de borrar scans del área '+area+'?')) return;
+    db.collection('folios').doc(FOLIO_ID).collection('scans').where('area','==',area).limit(1000).get()
+      .then(function(q){ const batch=db.batch(); q.forEach(function(d){ batch.delete(d.ref); }); return batch.commit().then(function(){ alert('Borrados: '+q.size); }); })
+      .catch(function(e){ alert('Error: '+(e.message||e)); });
+  }); const area=prompt('Área a borrar (máx 1000 docs por ejecución):'); if(!area) return; if(!confirm('¿Seguro de borrar scans del área '+area+'?')) return; const q=await db.collection('folios').doc(FOLIO_ID).collection('scans').where('area','==',area).limit(1000).get(); const batch=db.batch(); q.forEach(d=>batch.delete(d.ref)); await batch.commit(); alert('Borrados: '+q.size); });
   function buildReportRows(byArea){ const ex=(FOLIO_DOC?.existenciasMap)||{}; const rows=[]; const modF=($('#filtroModelo')?.value||'').trim().toUpperCase(); const colF=($('#filtroColor')?.value||'').trim().toUpperCase(); const talF=($('#filtroTalla')?.value||'').trim().toUpperCase(); if(byArea){ AGG_BY_AREA.forEach((mods, area)=>{ mods.forEach((scan, vkey)=>{ const {mod,color,talla}=splitKey(vkey); if(modF && !mod.toUpperCase().includes(modF)) return; if(colF && !(color||'').toUpperCase().includes(colF)) return; if(talF && !(talla||'').toUpperCase().includes(talF)) return; const theo=Number(ex[vkey]||0); rows.push({ area, mod, color, talla, theo, scan, diff: scan-theo }); }); }); return rows.sort((a,b)=> (a.area||'').localeCompare(b.area||'') || a.mod.localeCompare(b.mod) || (a.color||'').localeCompare(b.color||'') || (a.talla||'').localeCompare(b.talla||'')); } const set=new Set([ ...Object.keys(ex), ...COUNTS.keys() ]); set.forEach(vkey=>{ const {mod,color,talla}=splitKey(vkey); if(modF && !mod.toUpperCase().includes(modF)) return; if(colF && !(color||'').toUpperCase().includes(colF)) return; if(talF && !(talla||'').toUpperCase().includes(talF)) return; const theo=Number(ex[vkey]||0); const scan=Number(COUNTS.get(vkey)||0); rows.push({ area:'', mod, color, talla, theo, scan, diff:scan-theo }); }); return rows.sort((a,b)=>a.mod.localeCompare(b.mod) || (a.color||'').localeCompare(b.color||'') || (a.talla||'').localeCompare(b.talla||'')); }
-  async function loadAggregatesByArea(){ if(!FOLIO_ID){ AGG_BY_AREA=new Map(); return; } AGG_BY_AREA=new Map(); const folio=db.collection('folios').doc(FOLIO_ID).collection('scans'); const page=1000; let q=folio.orderBy('ts').limit(page); let last=null; while(true){ const snap=await q.get(); if(snap.empty) break; snap.forEach(doc=>{ const x=doc.data(); const area=(x.area||'').trim(); const vkey=x.vkey||keyOf(x.mod,x.color,x.talla); if(!AGG_BY_AREA.has(area)) AGG_BY_AREA.set(area,new Map()); const m=AGG_BY_AREA.get(area); m.set(vkey,(m.get(vkey)||0)+1); }); if(snap.size<page) break; last=snap.docs[snap.size-1]; q=folio.orderBy('ts').startAfter(last).limit(page); } }
+  function loadAggregatesByArea(){
+    if(!FOLIO_ID){ AGG_BY_AREA=new Map(); return Promise.resolve(); }
+    AGG_BY_AREA=new Map();
+    const folio = db.collection('folios').doc(FOLIO_ID).collection('scans');
+    const page = 1000;
+    function pageFn(query){
+      return query.get().then(function(snap){
+        if(snap.empty) return;
+        snap.forEach(function(doc){ const x=doc.data(); const area=(x.area||'').trim(); const vkey=x.vkey||keyOf(x.mod,x.color,x.talla); if(!AGG_BY_AREA.has(area)) AGG_BY_AREA.set(area,new Map()); const m=AGG_BY_AREA.get(area); m.set(vkey,(m.get(vkey)||0)+1); });
+        if(snap.size < page) return;
+        const last = snap.docs[snap.size-1];
+        return pageFn(folio.orderBy('ts').startAfter(last).limit(page));
+      });
+    }
+    return pageFn(folio.orderBy('ts').limit(page));
+  } AGG_BY_AREA=new Map(); const folio=db.collection('folios').doc(FOLIO_ID).collection('scans'); const page=1000; let q=folio.orderBy('ts').limit(page); let last=null; while(true){ const snap=await q.get(); if(snap.empty) break; snap.forEach(doc=>{ const x=doc.data(); const area=(x.area||'').trim(); const vkey=x.vkey||keyOf(x.mod,x.color,x.talla); if(!AGG_BY_AREA.has(area)) AGG_BY_AREA.set(area,new Map()); const m=AGG_BY_AREA.get(area); m.set(vkey,(m.get(vkey)||0)+1); }); if(snap.size<page) break; last=snap.docs[snap.size-1]; q=folio.orderBy('ts').startAfter(last).limit(page); } }
   function renderReport(){ const byArea=$('groupMode').value==='area'; const rows=buildReportRows(byArea); $('reportBody').innerHTML=rows.map(r=>`<tr><td>${esc(r.area||'')}</td><td>${esc(r.mod)}</td><td>${esc(r.color||'')}</td><td>${esc(r.talla||'')}</td><td class=\"text-right\">${r.theo}</td><td class=\"text-right\">${r.scan}</td><td class=\"text-right ${r.diff===0?'':(r.diff>0?'text-emerald-600':'text-red-600')}\">${r.diff}</td></tr>`).join(''); }
 
   // ===== Inicio =====
