@@ -374,9 +374,17 @@
   }
   on('btnRecargarCloud','click',function(){ cargarCatalogo(false); });
   on('btnForzarURL','click',function(){ cargarCatalogo(true); });
-  on('btnPlantillaCSV','click',function(){ var csv='MODELO,COLOR,TALLA,CANTIDAD
+ on('btnPlantillaCSV','click',function(){
+  var csv = `MODELO,COLOR,TALLA,CANTIDAD
 587-12,NEGRO,250,3
-'; var blob=new Blob([csv],{type:'text/csv'}); var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='plantilla_existencias.csv'; a.click(); URL.revokeObjectURL(a.href); });
+`;
+  var blob=new Blob([csv],{type:'text/csv'});
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='plantilla_existencias.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
 
   // ===== Folio (autoincremental + validación estricta) =====
   let FOLIO_ID=null; let FOLIO_DOC=null; let COUNTS=new Map(); let AGG_BY_AREA=new Map();
