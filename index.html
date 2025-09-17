@@ -373,17 +373,15 @@
   }
   on('btnRecargarCloud','click',function(){ cargarCatalogo(false); });
   on('btnForzarURL','click',function(){ cargarCatalogo(true); });
- on('btnPlantillaCSV','click',function(){
-  var csv = `MODELO,COLOR,TALLA,CANTIDAD
+  on('btnPlantillaCSV','click',function(){
+    var csv = `MODELO,COLOR,TALLA,CANTIDAD
 587-12,NEGRO,250,3
 `;
-  var blob=new Blob([csv],{type:'text/csv'});
-  var a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download='plantilla_existencias.csv';
-  a.click();
-  URL.revokeObjectURL(a.href);
-});
+    var blob=new Blob([csv],{type:'text/csv'});
+    var a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download='plantilla_existencias.csv'; a.click();
+    URL.revokeObjectURL(a.href);
+  });
 
   // ===== Folio (autoincremental + validación estricta) =====
   let FOLIO_ID=null; let FOLIO_DOC=null; let COUNTS=new Map(); let AGG_BY_AREA=new Map();
@@ -565,7 +563,7 @@
   // ===== Reporte =====
   on('btnRefrescarReporte','click', async ()=>{ await loadAggregatesByArea(); renderReport(); });
   on('btnExportarCSV','click',()=>{
-    const rows = buildReportRows($('#groupMode').value==='area');
+    const rows = buildReportRows($('groupMode').value==='area');
     const csv = ['Area,Modelo,Color,Talla,Teorico,Escaneado,Diferencia']
       .concat(rows.map(r=>[r.area||'',r.mod,r.color||'',r.talla||'',r.theo,r.scan,r.diff].join(',')))
       .join('\n');
@@ -622,7 +620,7 @@
       if(snap.size < page) break; last = snap.docs[snap.size-1]; q = folio.orderBy('ts').startAfter(last).limit(page);
     }
   }
-  function renderReport(){ const byArea=$('#groupMode').value==='area'; const rows=buildReportRows(byArea); $('reportBody').innerHTML = rows.map(r=>`<tr><td>${esc(r.area||'')}</td><td>${esc(r.mod)}</td><td>${esc(r.color||'')}</td><td>${esc(r.talla||'')}</td><td class=\"text-right\">${r.theo}</td><td class=\"text-right\">${r.scan}</td><td class=\"text-right ${r.diff===0?'':(r.diff>0?'text-emerald-600':'text-red-600')}\">${r.diff}</td></tr>`).join(''); }
+  function renderReport(){ const byArea=$('groupMode').value==='area'; const rows=buildReportRows(byArea); $('reportBody').innerHTML = rows.map(r=>`<tr><td>${esc(r.area||'')}</td><td>${esc(r.mod)}</td><td>${esc(r.color||'')}</td><td>${esc(r.talla||'')}</td><td class=\"text-right\">${r.theo}</td><td class=\"text-right\">${r.scan}</td><td class=\"text-right ${r.diff===0?'':(r.diff>0?'text-emerald-600':'text-red-600')}\">${r.diff}</td></tr>`).join(''); }
 
   // ===== Inicio =====
   window.addEventListener('DOMContentLoaded',()=>{
