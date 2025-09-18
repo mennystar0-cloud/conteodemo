@@ -273,6 +273,22 @@
   function canon(s){ return (s||'').toString().replace(/\u0300-\u036f/g,'').trim().toUpperCase(); }
   function keyOf(mod,color,talla){ return (mod||'').trim()+"|"+(color||'').trim()+"|"+(talla||'').trim(); }
   function splitKey(k){ var a=String(k||'').split('|'); return {mod:a[0]||'', color:a[1]||'', talla:a[2]||''}; }
+<script>
+// Lee operador desde inputs o localStorage y persiste en ambos
+function getOperadorValue(){
+  var v = '';
+  var el = document.getElementById('operador');      if (el && el.value) v = el.value;
+  if (!v) { var el2 = document.getElementById('scanOperador'); if (el2 && el2.value) v = el2.value; }
+  if (!v) { var ls  = localStorage.getItem('cc-operador');      if (ls) v = ls; }
+  v = String(v || '').replace(/[\u00A0\u200B\u200C\u200D]/g,' ').trim();
+  if (v) {
+    if (document.getElementById('operador'))     document.getElementById('operador').value = v;
+    if (document.getElementById('scanOperador')) document.getElementById('scanOperador').value = v;
+    localStorage.setItem('cc-operador', v);
+  }
+  return v;
+}
+</script>
 
   // ===== Tabs =====
   function showTab(name){ var names=['importar','existencias','folio','escanear','reporte','consulta','historial']; for(var i=0;i<names.length;i++){ var t=names[i]; var el=$("tab-"+t); if(!el) continue; el.classList.toggle('hidden', t!==name); el.classList.toggle('block', t===name); } }
