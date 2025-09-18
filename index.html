@@ -1,4 +1,4 @@
-<!-- path: /index.html (LEGACY ES5 COMPAT) -->
+<!-- path: /index.html (LEGACY ES5, limpio) -->
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -6,19 +6,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0ea5e9">
   <meta name="mobile-web-app-capable" content="yes">
-  <!-- mantener por compatibilidad iOS antiguos -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <title>Conteo Cíclico</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23000000'/%3E%3Ctext x='2' y='12' fill='%23ffffff' font-family='Arial' font-size='10'%3ECC%3C/text%3E%3C/svg%3E">
-  <script>
-    (function(){
-      try{ if('serviceWorker' in navigator && window.isSecureContext){ navigator.serviceWorker.register('./sw.js').catch(function(){}); } }catch(e){}
-    })();
-  </script>
+  <script> (function(){ try{ if('serviceWorker' in navigator && window.isSecureContext){ navigator.serviceWorker.register('./sw.js').catch(function(){}); } }catch(e){} })(); </script>
+  <!-- UI -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Librerías locales (sin CORS) -->
   <script src="static/xlsx.full.min.js"></script>
   <script src="static/quagga.min.js"></script>
+  <!-- Firebase compat -->
   <script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-storage-compat.js"></script>
@@ -63,7 +61,7 @@
   <section id="tab-importar" class="block">
     <div class="card">
       <h2 class="font-semibold mb-2">Catálogo maestro (Local/PWA)</h2>
-      <p class="text-sm text-gray-600">Lee <code>static/catalogo-master.xlsx</code> local (sin CORS). Columnas: <code>CODIGO_BARRA</code>, <code>MOD</code>, <code>COLOR</code>, <code>TALLA</code>.</p>
+      <p class="text-sm text-gray-600">Lee <code>static/catalogo-master.xlsx</code>. Columnas: <code>CODIGO_BARRA</code>, <code>MOD</code>, <code>COLOR</code>, <code>TALLA</code>.</p>
       <div class="flex flex-wrap gap-2 mt-2 items-center">
         <button id="btnRecargarCloud" class="btn bg-blue-600 text-white">Recargar catálogo</button>
         <button id="btnForzarURL" class="btn bg-amber-500 text-white">Forzar URL única</button>
@@ -76,7 +74,7 @@
   <section id="tab-existencias" class="hidden">
     <div class="card">
       <h2 class="font-semibold mb-2">Pegar existencias (teórico)</h2>
-      <p class="text-sm text-gray-600">Formato: <code>MODELO,COLOR TALLA CANTIDAD</code> o CSV <code>MODELO,COLOR,TALLA,CANTIDAD</code>.</p>
+      <p class="text-sm text-gray-600">Formato: <code>MODELO,COLOR TALLA CANTIDAD</code> o <code>MODELO,COLOR,TALLA,CANTIDAD</code>.</p>
       <textarea id="existText" rows="8" class="w-full border rounded p-2" placeholder="Ejemplos&#10;587-12,NEGRO 250 3&#10;040-83,ANIMAL PRINT 230 3&#10;ABC-01,ROJO,27,2"></textarea>
       <div class="flex flex-wrap gap-2 mt-2 items-center">
         <button id="btnValidarExist" class="btn bg-gray-200">Validar</button>
@@ -128,13 +126,12 @@
       <h2 class="font-semibold mb-2">Escanear</h2>
       <div class="flex flex-wrap items-center gap-3 mb-3 text-sm">
         <label class="flex items-center gap-2"><input id="toggleXL" type="checkbox" class="h-4 w-4">Modo tienda (alto contraste / XL)</label>
-        <label class="flex items-center gap-2"><input id="toggleSave" type="checkbox" class="h-4 w-4">Ahorro de batería (menos FPS)</label>
-        <label class="flex items-center gap-2"><input id="toggleMute" type="checkbox" class="h-4 w-4">Silencio (sin beep/vibración)</label>
+        <label class="flex items-center gap-2"><input id="toggleSave" type="checkbox" class="h-4 w-4">Ahorro de batería</label>
+        <label class="flex items-center gap-2"><input id="toggleMute" type="checkbox" class="h-4 w-4">Silencio</label>
         <label class="flex items-center gap-2">Cooldown
           <input id="cooldownMs" type="number" min="0" step="100" value="800" class="border p-1 rounded w-24"> ms
         </label>
         <span id="fpsBadge" class="badge bg-gray-100">FPS: --</span>
-        <span class="text-xs text-gray-500">Se guarda en este dispositivo</span>
       </div>
       <div class="grid md:grid-cols-2 gap-4">
         <div>
@@ -270,56 +267,39 @@
   function on(id, ev, fn){ var n=$(id); if(n) n.addEventListener(ev, fn); }
   function esc(s){ return String(s).replace(/[&<>]/g,function(m){ return {"&":"&amp;","<":"&lt;",">":"&gt;"}[m];}); }
   function fmt(d){ function p(n){return String(n).padStart(2,'0');} return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+" "+p(d.getHours())+":"+p(d.getMinutes()); }
-  function canon(s){ return (s||'').toString().replace(/\u0300-\u036f/g,'').trim().toUpperCase(); }
+  function canon(s){ return (s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase(); }
   function keyOf(mod,color,talla){ return (mod||'').trim()+"|"+(color||'').trim()+"|"+(talla||'').trim(); }
   function splitKey(k){ var a=String(k||'').split('|'); return {mod:a[0]||'', color:a[1]||'', talla:a[2]||''}; }
-<script>
-// Lee operador desde inputs o localStorage y persiste en ambos
-function getOperadorValue(){
-  var v = '';
-  var el = document.getElementById('operador');      if (el && el.value) v = el.value;
-  if (!v) { var el2 = document.getElementById('scanOperador'); if (el2 && el2.value) v = el2.value; }
-  if (!v) { var ls  = localStorage.getItem('cc-operador');      if (ls) v = ls; }
-  v = String(v || '').replace(/[\u00A0\u200B\u200C\u200D]/g,' ').trim();
-  if (v) {
-    if (document.getElementById('operador'))     document.getElementById('operador').value = v;
-    if (document.getElementById('scanOperador')) document.getElementById('scanOperador').value = v;
+
+  // Operador sincronizado (folio/escanear/localStorage)
+  function getOperadorValue(){
+    var v='';
+    var el=$("operador"); if(el && el.value) v=el.value;
+    if(!v){ var el2=$("scanOperador"); if(el2 && el2.value) v=el2.value; }
+    if(!v){ var ls=localStorage.getItem('cc-operador'); if(ls) v=ls; }
+    v=String(v||'').replace(/[\u00A0\u200B\u200C\u200D]/g,' ').trim();
+    if(v){ if($("operador")) $("operador").value=v; if($("scanOperador")) $("scanOperador").value=v; localStorage.setItem('cc-operador', v); }
+    return v;
+  }
+  function syncOperador(e){
+    var v=(e.target.value||'').replace(/[\u00A0\u200B\u200C\u200D]/g,' ').trim();
     localStorage.setItem('cc-operador', v);
+    var o=$('operador'), s=$('scanOperador');
+    if(o && o!==e.target && o.value!==v) o.value=v;
+    if(s && s!==e.target && s.value!==v) s.value=v;
   }
-  return v;
-}
-</script>
-  <script>
-function syncOperador(e){
-  var v = (e.target.value || '').replace(/[\u00A0\u200B\u200C\u200D]/g,' ').trim();
-  localStorage.setItem('cc-operador', v);
-  var o = document.getElementById('operador');
-  var s = document.getElementById('scanOperador');
-  if (o && o !== e.target && o.value !== v) o.value = v;
-  if (s && s !== e.target && s.value !== v) s.value = v;
-}
-if (document.getElementById('operador'))     document.getElementById('operador').addEventListener('input', syncOperador);
-if (document.getElementById('scanOperador')) document.getElementById('scanOperador').addEventListener('input', syncOperador);
-
-// Prefill desde cc-operador si existe
-(function(){
-  var v = localStorage.getItem('cc-operador');
-  if (v) {
-    if (document.getElementById('operador'))     document.getElementById('operador').value = v;
-    if (document.getElementById('scanOperador')) document.getElementById('scanOperador').value = v;
-  }
-})();
-</script>
-
 
   // ===== Tabs =====
   function showTab(name){ var names=['importar','existencias','folio','escanear','reporte','consulta','historial']; for(var i=0;i<names.length;i++){ var t=names[i]; var el=$("tab-"+t); if(!el) continue; el.classList.toggle('hidden', t!==name); el.classList.toggle('block', t===name); } }
   window.addEventListener('DOMContentLoaded', function(){
     var tabs=document.querySelectorAll('#tabs [data-tab]');
-    for(var i=0;i<tabs.length;i++)(function(btn){ btn.addEventListener('click', function(){ for(var j=0;j<tabs.length;j++){ tabs[j].classList.remove('border-blue-600'); tabs[j].classList.remove('text-blue-600'); } btn.classList.add('border-blue-600'); btn.classList.add('text-blue-600'); showTab(btn.getAttribute('data-tab')); }); })(tabs[i]);
+    var i; for(i=0;i<tabs.length;i++)(function(btn){ btn.addEventListener('click', function(){ var j; for(j=0;j<tabs.length;j++){ tabs[j].classList.remove('border-blue-600'); tabs[j].classList.remove('text-blue-600'); } btn.classList.add('border-blue-600'); btn.classList.add('text-blue-600'); showTab(btn.getAttribute('data-tab')); }); })(tabs[i]);
     var isStandalone=(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)||window.navigator.standalone; if(isStandalone||window.innerWidth<768){ showTab('escanear'); }else{ showTab('importar'); }
     var ids=['operador','almacen','temporada','scanArea','scanPos','scanOperador'];
-    for(var k=0;k<ids.length;k++){ var el=$(ids[k]); if(!el) continue; var v=localStorage.getItem('cc-'+ids[k]); if(v!==null) el.value=v; el.addEventListener('input',function(e){ localStorage.setItem('cc-'+e.target.id, e.target.value); }); el.addEventListener('change',function(e){ localStorage.setItem('cc-'+e.target.id, e.target.value); }); }
+    for(i=0;i<ids.length;i++){ var el=$(ids[i]); if(!el) continue; var v=localStorage.getItem('cc-'+ids[i]); if(v!==null) el.value=v; el.addEventListener('input',function(e){ localStorage.setItem('cc-'+e.target.id, e.target.value); }); el.addEventListener('change',function(e){ localStorage.setItem('cc-'+e.target.id, e.target.value); }); }
+    if($('operador')) $('operador').addEventListener('input', syncOperador);
+    if($('scanOperador')) $('scanOperador').addEventListener('input', syncOperador);
+    (function(){ var v=localStorage.getItem('cc-operador'); if(v){ if($('operador')) $('operador').value=v; if($('scanOperador')) $('scanOperador').value=v; } })();
     var xlPref=localStorage.getItem('cc-mode-xl'); var autoXL=(isStandalone||window.innerWidth<768); var xlOn=(xlPref!==null)?(xlPref==='1'):autoXL; document.documentElement.classList.toggle('mode-xl', !!xlOn); if($('toggleXL')) $('toggleXL').checked=!!xlOn; localStorage.setItem('cc-mode-xl', xlOn?'1':'0');
     var savePref=localStorage.getItem('cc-battery-save'); var saveOn=(savePref!==null)?(savePref==='1'):(window.innerWidth<768); setBatterySave(!!saveOn); if($('toggleSave')) $('toggleSave').checked=!!saveOn;
     var mutePref=localStorage.getItem('cc-mute'); var muteOn=(mutePref!==null)?(mutePref==='1'):document.documentElement.classList.contains('mode-xl'); MUTE=!!muteOn; if($('toggleMute')) $('toggleMute').checked=!!muteOn;
@@ -337,12 +317,9 @@ if (document.getElementById('scanOperador')) document.getElementById('scanOperad
   function mapSet(m,k,v){ if(m instanceof Map){ m.set(k,v);} else { m[k]=v; } }
   function mapGet(m,k){ return (m instanceof Map)? m.get(k): m[k]; }
   function mapHas(m,k){ return (m instanceof Map)? m.has(k): Object.prototype.hasOwnProperty.call(m,k); }
-  function mapClear(m){ if(m instanceof Map){ m.clear(); } else { for(var x in m) if(Object.prototype.hasOwnProperty.call(m,x)) delete m[x]; } }
-  function mapForEach(m,fn){ if(m instanceof Map){ m.forEach(fn); } else { for(var x in m) if(Object.prototype.hasOwnProperty.call(m,x)) fn(m[x],x); } }
-
-  function buildCatalog(rows){ var res={ byBarcode:new Map?new Map():{}, byVariant:new Map?new Map():{} }; var H=(rows[0]||[]); for(var h=0;h<H.length;h++) H[h]=canon(H[h]); function idx(names){ for(var j=0;j<names.length;j++){ var ii=H.indexOf(canon(names[j])); if(ii>=0) return ii; } return -1; }
+  function buildCatalog(rows){ var res={ byBarcode:new Map?new Map():{}, byVariant:new Map?new Map():{} }; var H=(rows[0]||[]); var h; for(h=0;h<H.length;h++) H[h]=canon(H[h]); function idx(names){ var j; for(j=0;j<names.length;j++){ var ii=H.indexOf(canon(names[j])); if(ii>=0) return ii; } return -1; }
     var iCode=idx(['CODIGO_BARRA','CODIGO','EAN','UPC']); var iMod=idx(['MOD','MODELO','SKU']); var iColor=idx(['COLOR']); var iTalla=idx(['TALLA']);
-    for(var r=1;r<rows.length;r++){ var row=rows[r]||[]; var code=String(row[iCode]||'').trim(); var mod=String(row[iMod]||'').trim(); var color=String(row[iColor]||'').trim(); var talla=String(row[iTalla]||'').trim(); if(!code||!mod) continue; var vkey=keyOf(mod,color,talla); var item={mod:mod,color:color,talla:talla,vkey:vkey}; mapSet(res.byBarcode, code, item); if(!mapHas(res.byVariant, vkey)) mapSet(res.byVariant, vkey, item); }
+    var r; for(r=1;r<rows.length;r++){ var row=rows[r]||[]; var code=String(row[iCode]||'').trim(); var mod=String(row[iMod]||'').trim(); var color=String(row[iColor]||'').trim(); var talla=String(row[iTalla]||'').trim(); if(!code||!mod) continue; var vkey=keyOf(mod,color,talla); var item={mod:mod,color:color,talla:talla,vkey:vkey}; mapSet(res.byBarcode, code, item); if(!mapHas(res.byVariant, vkey)) mapSet(res.byVariant, vkey, item); }
     return res; }
   function cargarCatalogo(force){ $('importStatus').textContent='Descargando...'; var url='static/catalogo-master.xlsx'+(force?('?v='+Date.now()):''); fetch(url,{cache:'no-store'}).then(function(resp){ if(!resp.ok) throw new Error('HTTP '+resp.status); return resp.arrayBuffer(); }).then(function(ab){ return ensureXLSX().then(function(){return ab;}); }).then(function(ab){ var wb=XLSX.read(ab,{type:'array'}); var sh=wb.Sheets[wb.SheetNames[0]]; var rows=XLSX.utils.sheet_to_json(sh,{header:1,defval:''}); CATALOGO=buildCatalog(rows); $('importStatus').textContent='Catálogo OK: '+(rows.length-1)+' filas (hoja: '+wb.SheetNames[0]+') · Origen: local'; }).catch(function(e){ console.error(e); $('importStatus').textContent='Error: '+(e.message||e); }); }
   on('btnRecargarCloud','click', function(){ cargarCatalogo(false); });
@@ -354,7 +331,7 @@ if (document.getElementById('scanOperador')) document.getElementById('scanOperad
   function nextFolioNumber(){ var ref=db.collection('meta').doc('counters'); return db.runTransaction(function(tx){ return tx.get(ref).then(function(snap){ var cur=snap.exists?(snap.data().nextFolio||1):1; tx.set(ref,{nextFolio:cur+1},{merge:true}); return cur; }); }); }
   function req(input,msg){ var val; if(typeof input==='string'){val=input;} else if(input && typeof input==='object' && 'value' in input){ val=input.value; } else { val=input; } var s=String(val||'').trim(); if(!s){ alert(msg); throw new Error(msg); } return s; }
   function activarFolio(id){ return db.collection('folios').doc(id).get().then(function(snap){ if(!snap.exists){ alert('Folio no encontrado'); return; } FOLIO_ID=id; FOLIO_DOC=snap.data(); $('envInfo').textContent='Folio '+id; $('joinFolioId').value=id; var dt=(FOLIO_DOC && FOLIO_DOC.createdAt && typeof FOLIO_DOC.createdAt.toDate==='function')? FOLIO_DOC.createdAt.toDate():new Date(); $('folioFecha').textContent=fmt(dt); $('folioStatus').innerHTML='Folio: <b>'+id+'</b> — '+esc(FOLIO_DOC.name||'')+' · Operador: '+esc(FOLIO_DOC.createdBy||'')+' · Almacén: '+esc(FOLIO_DOC.almacen||'')+' · Temporada: '+esc(FOLIO_DOC.temporada||''); document.title='Folio '+id+' · Conteo Cíclico'; subscribeCounts(); subscribeScans(); }); }
-  function crearFolio(){ try{ var name=($('#folioName')&&$('#folioName').value||'Cíclico'); name=(name||'').trim()||'Cíclico'; var operador=req($('#operador'),'Indica quién realiza el cíclico'); var almacen=req($('#almacen'),'Indica el tipo de almacén'); var temporada=($('#temporada')&&$('#temporada').value)||'TODAS'; return nextFolioNumber().then(function(number){ var id=String(number).padStart(6,'0'); var ref=db.collection('folios').doc(id); return ref.set({ id:id, number:number, name:name, createdBy:operador, almacen:almacen, temporada:temporada, state:'open', existenciasMap:{}, createdAt: firebase.firestore.FieldValue.serverTimestamp() }).then(function(){ return activarFolio(id); }); }).catch(function(e){ console.warn(e && e.message ? e.message : e); }); }catch(e){ console.warn(e && e.message ? e.message : e); return Promise.resolve(); } }
+  function crearFolio(){ try{ var name=($('#folioName')&&$('#folioName').value||'Cíclico'); name=(name||'').trim()||'Cíclico'; var operador=getOperadorValue(); if(!operador){ alert('Indica quién realiza el cíclico'); var foc=$("operador")||$("scanOperador"); if(foc) try{foc.focus();}catch(_){} throw new Error('Operador requerido'); } var almacen=req($('#almacen'),'Indica el tipo de almacén'); var temporada=($('#temporada')&&$('#temporada').value)||'TODAS'; return nextFolioNumber().then(function(number){ var id=String(number).padStart(6,'0'); var ref=db.collection('folios').doc(id); return ref.set({ id:id, number:number, name:name, createdBy:operador, almacen:almacen, temporada:temporada, state:'open', existenciasMap:{}, createdAt: firebase.firestore.FieldValue.serverTimestamp() }).then(function(){ return activarFolio(id); }); }).catch(function(e){ console.warn(e && e.message ? e.message : e); }); }catch(e){ console.warn(e && e.message ? e.message : e); return Promise.resolve(); } }
   function unirseFolio(){ var id=($('#joinFolioId')&&$('#joinFolioId').value||'').trim(); if(!id) return; return activarFolio(id); }
   on('btnCrearFolio','click', crearFolio);
   on('btnUnirseFolio','click', unirseFolio);
@@ -404,11 +381,11 @@ if (document.getElementById('scanOperador')) document.getElementById('scanOperad
   function startLoopDetect(){ function loop(){ if(!scanning) return; if(videoEl && videoEl.readyState>=2){ var now=Date.now(); if(now-lastProc>=PROC_INTERVAL_MS){ lastProc=now; var w=Math.min(640, videoEl.videoWidth||640), h=Math.min(480, videoEl.videoHeight||480); canvasEl.width=w; canvasEl.height=h; ctx.drawImage(videoEl,0,0,w,h); bdDetector.detect(canvasEl).then(function(codes){ if(!codes||!codes.length) return; if(now-lastDetect<400) return; lastDetect=now; var code=(codes[0].rawValue||'').trim(); if(code) handleBarcode(code); }).catch(function(){}); } } rafId=requestAnimationFrame(loop); } loop(); }
   function startNativeDetector(){ var devId=($('cameraSelect')&&$('cameraSelect').value)||undefined; return setupVideo(devId).then(function(){ if(!bdDetector){ try{ bdDetector=new BarcodeDetector({formats:['ean_13','ean_8','upc_e','upc_a','code_128']}); }catch(e){ return Promise.reject(e); } } }).then(function(){ scanning=true; startFpsMonitor(); startLoopDetect(); }).catch(function(e){ console.warn('BarcodeDetector falló, usando Quagga', e); return startQuagga(); }); }
   function startQuagga(){ return new Promise(function(resolve){ if(!window.Quagga){ alert('Quagga no disponible'); resolve(); return; } var devId=($('cameraSelect')&&$('cameraSelect').value)||undefined; Quagga.init({ inputStream:{ name:'Live', type:'LiveStream', target: document.querySelector('#interactive'), constraints: devId? {deviceId:devId}:{ facingMode:'environment'} }, decoder:{ readers:['ean_reader','ean_8_reader','upc_reader','upc_e_reader','code_128_reader'] }, locate:true }, function(err){ if(err){ console.error(err); alert('No se pudo iniciar cámara'); resolve(); return; } scanning=true; Quagga.start(); startFpsMonitor(); setTimeout(function(){ try{ var v=document.querySelector('#interactive video'); activeTrack=v && v.srcObject && v.srcObject.getVideoTracks ? v.srcObject.getVideoTracks()[0]:null; }catch(e){} },300); Quagga.onDetected(function(res){ var now=Date.now(); if(now-lastDetect<400) return; lastDetect=now; var code=(res && res.codeResult && res.codeResult.code || '').trim(); if(code) handleBarcode(code); }); resolve(); }); }); }
-  on('btnRefreshCam','click', function(){ navigator.mediaDevices.enumerateDevices().then(function(list){ var cams=[]; for(var i=0;i<list.length;i++){ if(list[i].kind==='videoinput') cams.push(list[i]); } var html=''; for(var j=0;j<cams.length;j++){ var d=cams[j]; html += '<option value="'+d.deviceId+'">'+(d.label||('Cam '+(d.deviceId||'').slice(-4)))+'</option>'; } $('cameraSelect').innerHTML=html; }); });
-  on('btnStart','click', function(){ if(scanning) return; ensureAudio(); (hasBarcodeDetector()? startNativeDetector(): startQuagga()).catch(function(e){ console.error(e); alert('Permite el acceso a la cámara.'); }); });
-  function stopScanner(){ try{ if(rafId) cancelAnimationFrame(rafId); stopFpsMonitor(); if(videoEl && videoEl.srcObject){ var tracks=videoEl.srcObject.getTracks(); for(var i=0;i<tracks.length;i++) tracks[i].stop(); } if(window.Quagga){ try{ Quagga.stop(); }catch(e){} } }catch(e){} scanning=false; activeTrack=null; TORCH=false; }
+  on('btnRefreshCam','click',function(){ navigator.mediaDevices.enumerateDevices().then(function(list){ var cams=[]; var i; for(i=0;i<list.length;i++){ if(list[i].kind==='videoinput') cams.push(list[i]); } var html=''; var j; for(j=0;j<cams.length;j++){ var d=cams[j]; html += '<option value="'+d.deviceId+'">'+(d.label||('Cam '+(d.deviceId||'').slice(-4)))+'</option>'; } $('cameraSelect').innerHTML=html; }); });
+  on('btnStart','click',function(){ if(scanning) return; ensureAudio(); (hasBarcodeDetector()? startNativeDetector(): startQuagga()).catch(function(e){ console.error(e); alert('Permite el acceso a la cámara.'); }); });
+  function stopScanner(){ try{ if(rafId) cancelAnimationFrame(rafId); stopFpsMonitor(); if(videoEl && videoEl.srcObject){ var tracks=videoEl.srcObject.getTracks(); var i; for(i=0;i<tracks.length;i++) tracks[i].stop(); } if(window.Quagga){ try{ Quagga.stop(); }catch(e){} } }catch(e){} scanning=false; activeTrack=null; TORCH=false; }
   on('btnStop','click', stopScanner);
-  on('btnTorch','click', function(){ try{ if(!activeTrack){ var v=document.querySelector('#interactive video'); if(v && v.srcObject && v.srcObject.getVideoTracks){ var t=v.srcObject.getVideoTracks(); activeTrack=(t && t[0])? t[0]:null; } } if(!activeTrack) return alert('Inicia la cámara'); var caps=activeTrack.getCapabilities && activeTrack.getCapabilities(); if(!caps || !caps.torch) return alert('Linterna no soportada'); TORCH=!TORCH; activeTrack.applyConstraints({advanced:[{torch: TORCH}]}); }catch(e){ alert('Linterna no soportada'); }});
+  on('btnTorch','click',function(){ try{ if(!activeTrack){ var v=document.querySelector('#interactive video'); if(v && v.srcObject && v.srcObject.getVideoTracks){ var t=v.srcObject.getVideoTracks(); activeTrack=(t && t[0])? t[0]:null; } } if(!activeTrack) return alert('Inicia la cámara'); var caps=activeTrack.getCapabilities && activeTrack.getCapabilities(); if(!caps || !caps.torch) return alert('Linterna no soportada'); TORCH=!TORCH; activeTrack.applyConstraints({advanced:[{torch: TORCH}]}); }catch(e){ alert('Linterna no soportada'); }});
   on('toggleXL','change', function(e){ var on=e.target.checked; document.documentElement.classList.toggle('mode-xl', on); localStorage.setItem('cc-mode-xl', on?'1':'0'); });
   on('toggleSave','change', function(e){ var on=e.target.checked; var was=scanning; setBatterySave(on); if(was){ stopScanner(); (hasBarcodeDetector()? startNativeDetector(): startQuagga()); } });
   on('toggleMute','change', function(e){ MUTE=!!e.target.checked; localStorage.setItem('cc-mute', MUTE?'1':'0'); });
@@ -418,9 +395,10 @@ if (document.getElementById('scanOperador')) document.getElementById('scanOperad
 
   // ===== Registro scan =====
   function registrarScan(item, code, meta){ if(!FOLIO_ID) return Promise.reject(new Error('No folio')); var refFol=db.collection('folios').doc(FOLIO_ID); var vkey=item.vkey||keyOf(item.mod,item.color,item.talla); var scanDoc={ ts: firebase.firestore.FieldValue.serverTimestamp(), code:String(code), vkey:vkey, mod:item.mod, color:item.color||'', talla:item.talla||'', area:meta.area||'', pos:meta.pos||'', user:meta.user||meta.operador||'', temporada:meta.temporada||'' }; return refFol.collection('scans').add(scanDoc).then(function(){ return refFol.collection('counts').doc(vkey).set({qty: firebase.firestore.FieldValue.increment(1)},{merge:true}); }); }
-  function handleBarcode(code){ if(!FOLIO_ID){ beep(220,120); haptic([60]); return alert('Sin folio'); } if((CATALOGO.byBarcode instanceof Map && CATALOGO.byBarcode.size===0) || (!(CATALOGO.byBarcode instanceof Map) && Object.keys(CATALOGO.byBarcode).length===0)){ beep(220,120); haptic([60]); return alert('Catálogo no cargado'); } var n=normalizeBarcode(code); var key=n.ean13||code; var item=(CATALOGO.byBarcode instanceof Map)? CATALOGO.byBarcode.get(key) || CATALOGO.byBarcode.get(String(code)) : (CATALOGO.byBarcode[key] || CATALOGO.byBarcode[String(code)]);
+  function handleBarcode(code){ if(!FOLIO_ID){ beep(220,120); haptic([60]); return alert('Sin folio'); } var emptyCat=(CATALOGO.byBarcode instanceof Map)? (CATALOGO.byBarcode.size===0) : (Object.keys(CATALOGO.byBarcode).length===0); if(emptyCat){ beep(220,120); haptic([60]); return alert('Catálogo no cargado'); } var n=normalizeBarcode(code); var key=n.ean13||code; var item=(CATALOGO.byBarcode instanceof Map)? CATALOGO.byBarcode.get(key) || CATALOGO.byBarcode.get(String(code)) : (CATALOGO.byBarcode[key] || CATALOGO.byBarcode[String(code)]);
     if(!item){ $('lastItem').textContent='No encontrado: '+code; beep(220,140); haptic([40,60,40]); return; }
-    var area=(($('scanArea')&&$('scanArea').value)||'').trim(); var pos=(($('scanPos')&&$('scanPos').value)||'').trim(); var user=(($('scanOperador')&&$('scanOperador').value)||($('operador')&&$('operador').value)||(FOLIO_DOC&&FOLIO_DOC.createdBy)||'').trim(); var temporada=(FOLIO_DOC && FOLIO_DOC.temporada)?FOLIO_DOC.temporada:'TODAS'; var vkey=item.vkey||keyOf(item.mod,item.color,item.talla); var now=Date.now(); var last=(LAST_SEEN[vkey]||0); if(now-last<COOLDOWN_MS){ $('lastItem').innerHTML = "<span class='text-xs text-gray-500'>Ignorado por cooldown ("+(now-last)+"ms &lt; "+COOLDOWN_MS+"ms): "+esc(vkey)+"</span>"; return; } LAST_SEEN[vkey]=now;
+    var area=(($('scanArea')&&$('scanArea').value)||'').trim(); var pos=(($('scanPos')&&$('scanPos').value)||'').trim(); var user=(($('scanOperador')&&$('scanOperador').value)||($('operador')&&$('operador').value)||(FOLIO_DOC&&FOLIO_DOC.createdBy)||'').trim(); var temporada=(FOLIO_DOC && FOLIO_DOC.temporada)?FOLIO_DOC.temporada:'TODAS'; var vkey=item.vkey||keyOf(item.mod,item.color,item.talla);
+    var now=Date.now(); var last=(LAST_SEEN[vkey]||0); if(now-last<COOLDOWN_MS){ $('lastItem').innerHTML = "<span class='text-xs text-gray-500'>Ignorado por cooldown ("+(now-last)+"ms &lt; "+COOLDOWN_MS+"ms): "+esc(vkey)+"</span>"; return; } LAST_SEEN[vkey]=now;
     registrarScan(item, code, {area:area,pos:pos,user:user,temporada:temporada}).then(function(){ var ex=(FOLIO_DOC && FOLIO_DOC.existenciasMap)||{}; var theo=Number(ex[vkey]||0); var prev=(COUNTS instanceof Map)? (COUNTS.get(vkey)||0):(COUNTS[vkey]||0); var nextScan=prev+1; var diff=nextScan-theo; if(COUNTS instanceof Map){ COUNTS.set(vkey,nextScan);} else { COUNTS[vkey]=nextScan; } $('lastItem').innerHTML = "<div class='flex flex-wrap items-center gap-2'>"+
       "<span class='font-semibold'>OK "+esc(item.mod)+" "+esc(item.color||'')+" "+esc(item.talla||'')+"</span>"+
       "<span class='text-xs'>("+esc(vkey)+") — "+esc(area)+(pos?(' · '+esc(pos)):'')+"</span>"+
@@ -433,28 +411,28 @@ if (document.getElementById('scanOperador')) document.getElementById('scanOperad
   function subscribeScans(){ if(!FOLIO_ID) return; db.collection('folios').doc(FOLIO_ID).collection('scans').orderBy('ts','desc').limit(500).onSnapshot(function(snap){ var rows=[]; snap.forEach(function(d){ var x=d.data(); var dt=(x.ts && typeof x.ts.toDate==='function')? x.ts.toDate():new Date(); rows.push('<tr><td>'+fmt(dt)+'</td><td>'+esc(x.area||'')+'</td><td>'+esc(x.pos||'')+'</td><td>'+esc(x.code)+'</td><td>'+esc(x.mod||'')+'</td><td>'+esc(x.color||'')+'</td><td>'+esc(x.talla||'')+'</td><td>'+esc(x.user||x.operador||'')+'</td></tr>'); }); $('historyBody').innerHTML=rows.join(''); }); }
   function buildReportRows(byArea){ var ex=(FOLIO_DOC && FOLIO_DOC.existenciasMap)||{}; var rows=[]; var modF=(($('filtroModelo')&&$('filtroModelo').value)||'').trim().toUpperCase(); var colF=(($('filtroColor')&&$('filtroColor').value)||'').trim().toUpperCase(); var talF=(($('filtroTalla')&&$('filtroTalla').value)||'').trim().toUpperCase(); if(byArea){
       var areasKeys=[]; if(AGG_BY_AREA instanceof Map){ AGG_BY_AREA.forEach(function(_,k){ areasKeys.push(k); }); } else { for(var a in AGG_BY_AREA) if(Object.prototype.hasOwnProperty.call(AGG_BY_AREA,a)) areasKeys.push(a); }
-      for(var ai=0; ai<areasKeys.length; ai++){ var area=areasKeys[ai]; var mods=(AGG_BY_AREA instanceof Map)? AGG_BY_AREA.get(area) : AGG_BY_AREA[area]; var keys=[]; if(mods instanceof Map){ mods.forEach(function(_,k){ keys.push(k); }); } else { for(var kk in mods) if(Object.prototype.hasOwnProperty.call(mods,kk)) keys.push(kk); }
-        for(var ki=0; ki<keys.length; ki++){ var vkey=keys[ki]; var tmp=splitKey(vkey); if(modF && tmp.mod.toUpperCase().indexOf(modF)<0) continue; if(colF && (tmp.color||'').toUpperCase().indexOf(colF)<0) continue; if(talF && (tmp.talla||'').toUpperCase().indexOf(talF)<0) continue; var theo=Number(ex[vkey]||0); var scan = (mods instanceof Map)? (mods.get(vkey)||0):(mods[vkey]||0); rows.push({ area:area, mod:tmp.mod, color:tmp.color, talla:tmp.talla, theo:theo, scan:scan, diff:scan-theo }); }
+      var ai; for(ai=0; ai<areasKeys.length; ai++){ var area=areasKeys[ai]; var mods=(AGG_BY_AREA instanceof Map)? AGG_BY_AREA.get(area) : AGG_BY_AREA[area]; var keys=[]; if(mods instanceof Map){ mods.forEach(function(_,k){ keys.push(k); }); } else { var kk; for(kk in mods) if(Object.prototype.hasOwnProperty.call(mods,kk)) keys.push(kk); }
+        var ki; for(ki=0; ki<keys.length; ki++){ var vkey=keys[ki]; var tmp=splitKey(vkey); if(modF && tmp.mod.toUpperCase().indexOf(modF)<0) continue; if(colF && (tmp.color||'').toUpperCase().indexOf(colF)<0) continue; if(talF && (tmp.talla||'').toUpperCase().indexOf(talF)<0) continue; var theo=Number(ex[vkey]||0); var scan = (mods instanceof Map)? (mods.get(vkey)||0):(mods[vkey]||0); rows.push({ area:area, mod:tmp.mod, color:tmp.color, talla:tmp.talla, theo:theo, scan:scan, diff:scan-theo }); }
       }
       rows.sort(function(a,b){ return (a.area||'').localeCompare(b.area||'') || a.mod.localeCompare(b.mod) || (a.color||'').localeCompare(b.color||'') || (a.talla||'').localeCompare(b.talla||''); });
       return rows;
     }
-    var setKeys={}; for(var k in ex){ if(Object.prototype.hasOwnProperty.call(ex,k)) setKeys[k]=true; }
-    if(COUNTS instanceof Map){ COUNTS.forEach(function(_,k){ setKeys[k]=true; }); } else { for(var ck in COUNTS) if(Object.prototype.hasOwnProperty.call(COUNTS,ck)) setKeys[ck]=true; }
-    var keysAll=[]; for(var sk in setKeys) if(Object.prototype.hasOwnProperty.call(setKeys,sk)) keysAll.push(sk);
-    for(var i=0;i<keysAll.length;i++){ var v=keysAll[i]; var o=splitKey(v); if(modF && o.mod.toUpperCase().indexOf(modF)<0) continue; if(colF && (o.color||'').toUpperCase().indexOf(colF)<0) continue; if(talF && (o.talla||'').toUpperCase().indexOf(talF)<0) continue; var theo2=Number(ex[v]||0); var scan2=(COUNTS instanceof Map)? (COUNTS.get(v)||0):(COUNTS[v]||0); rows.push({ area:'', mod:o.mod, color:o.color, talla:o.talla, theo:theo2, scan:scan2, diff:scan2-theo2 }); }
+    var setKeys={}; var kx; for(kx in ex) if(Object.prototype.hasOwnProperty.call(ex,kx)) setKeys[kx]=true;
+    if(COUNTS instanceof Map){ COUNTS.forEach(function(_,k){ setKeys[k]=true; }); } else { for(kx in COUNTS) if(Object.prototype.hasOwnProperty.call(COUNTS,kx)) setKeys[kx]=true; }
+    var keysAll=[]; for(kx in setKeys) if(Object.prototype.hasOwnProperty.call(setKeys,kx)) keysAll.push(kx);
+    var i; for(i=0;i<keysAll.length;i++){ var v=keysAll[i]; var o=splitKey(v); if(modF && o.mod.toUpperCase().indexOf(modF)<0) continue; if(colF && (o.color||'').toUpperCase().indexOf(colF)<0) continue; if(talF && (o.talla||'').toUpperCase().indexOf(talF)<0) continue; var theo2=Number(ex[v]||0); var scan2=(COUNTS instanceof Map)? (COUNTS.get(v)||0):(COUNTS[v]||0); rows.push({ area:'', mod:o.mod, color:o.color, talla:o.talla, theo:theo2, scan:scan2, diff:scan2-theo2 }); }
     rows.sort(function(a,b){ return a.mod.localeCompare(b.mod) || (a.color||'').localeCompare(b.color||'') || (a.talla||'').localeCompare(b.talla||''); });
     return rows; }
   function loadAggregatesByArea(){ if(!FOLIO_ID){ AGG_BY_AREA=new Map?new Map():{}; return Promise.resolve(); } AGG_BY_AREA=new Map?new Map():{}; var folio=db.collection('folios').doc(FOLIO_ID).collection('scans'); var page=1000; function pageFn(query){ return query.get().then(function(snap){ if(snap.empty) return; snap.forEach(function(doc){ var x=doc.data(); var area=(x.area||'').trim(); var vkey=x.vkey||keyOf(x.mod,x.color,x.talla); var mods=(AGG_BY_AREA instanceof Map)? (AGG_BY_AREA.get(area)||new Map()):(AGG_BY_AREA[area]||{}); var curr=(mods instanceof Map)? (mods.get(vkey)||0):(mods[vkey]||0); curr++; if(mods instanceof Map){ mods.set(vkey,curr);} else { mods[vkey]=curr; } if(AGG_BY_AREA instanceof Map){ AGG_BY_AREA.set(area,mods);} else { AGG_BY_AREA[area]=mods; } }); if(snap.size<page) return; var last=snap.docs[snap.size-1]; return pageFn(folio.orderBy('ts').startAfter(last).limit(page)); }); } return pageFn(folio.orderBy('ts').limit(page)); }
-  function renderReport(){ var byArea=(($('groupMode')&&$('groupMode').value)==='area'); var rows=buildReportRows(byArea); var html=''; for(var i=0;i<rows.length;i++){ var r=rows[i]; html += '<tr><td>'+esc(r.area||'')+'</td><td>'+esc(r.mod)+'</td><td>'+esc(r.color||'')+'</td><td>'+esc(r.talla||'')+'</td><td class="text-right">'+r.theo+'</td><td class="text-right">'+r.scan+'</td><td class="text-right '+(r.diff===0?'':(r.diff>0?'text-emerald-600':'text-red-600'))+'">'+r.diff+'</td></tr>'; } $('reportBody').innerHTML=html; }
+  function renderReport(){ var byArea=(($('groupMode')&&$('groupMode').value)==='area'); var rows=buildReportRows(byArea); var html=''; var i; for(i=0;i<rows.length;i++){ var r=rows[i]; html += '<tr><td>'+esc(r.area||'')+'</td><td>'+esc(r.mod)+'</td><td>'+esc(r.color||'')+'</td><td>'+esc(r.talla||'')+'</td><td class="text-right">'+r.theo+'</td><td class="text-right">'+r.scan+'</td><td class="text-right '+(r.diff===0?'':(r.diff>0?'text-emerald-600':'text-red-600'))+'">'+r.diff+'</td></tr>'; } $('reportBody').innerHTML=html; }
   on('btnRefrescarReporte','click', function(){ loadAggregatesByArea().then(renderReport); });
-  on('btnExportarCSV','click', function(){ var rows=buildReportRows((($('groupMode')&&$('groupMode').value)==='area')); var csv=['Area,Modelo,Color,Talla,Teorico,Escaneado,Diferencia']; for(var i=0;i<rows.length;i++){ var r=rows[i]; csv.push([r.area||'',r.mod,r.color||'',r.talla||'',r.theo,r.scan,r.diff].join(',')); } var blob=new Blob([csv.join('\n')],{type:'text/csv;charset=utf-8;'}); var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='reporte_'+(FOLIO_ID||'sin_folio')+'.csv'; a.click(); URL.revokeObjectURL(a.href); });
+  on('btnExportarCSV','click', function(){ var rows=buildReportRows((($('groupMode')&&$('groupMode').value)==='area')); var csv=['Area,Modelo,Color,Talla,Teorico,Escaneado,Diferencia']; var i; for(i=0;i<rows.length;i++){ var r=rows[i]; csv.push([r.area||'',r.mod,r.color||'',r.talla||'',r.theo,r.scan,r.diff].join(',')); } var blob=new Blob([csv.join('\n')],{type:'text/csv;charset=utf-8;'}); var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='reporte_'+(FOLIO_ID||'sin_folio')+'.csv'; a.click(); URL.revokeObjectURL(a.href); });
   on('btnBorrarArea','click', function(){ if(!FOLIO_ID) return alert('Sin folio'); var area=prompt('Área a borrar (borra todos los scans del área, máx 1000 docs por ejecución):'); if(!area) return; if(!confirm('¿Seguro de borrar scans del área '+area+'?')) return; db.collection('folios').doc(FOLIO_ID).collection('scans').where('area','==',area).limit(1000).get().then(function(q){ var batch=db.batch(); q.forEach(function(d){ batch.delete(d.ref); }); return batch.commit().then(function(){ alert('Borrados: '+q.size); }); }).catch(function(e){ alert('Error: '+(e.message||e)); }); });
 
   // ===== Diagnóstico =====
   on('btnDiag','click', function(){ var m=$('diagModal'); if(m){ m.classList.remove('hidden'); runDiagnostics(); } });
   on('btnDiagClose','click', function(){ var m=$('diagModal'); if(m) m.classList.add('hidden'); });
-  function runDiagnostics(){ var lines=[]; try{ lines.push('Origen: '+location.origin); lines.push('Contexto seguro: '+window.isSecureContext); var dm=(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)||window.navigator.standalone; lines.push('PWA (standalone): '+ (!!dm)); lines.push('BarcodeDetector: '+ ('BarcodeDetector' in window)); var promises=[]; if('BarcodeDetector' in window && window.BarcodeDetector.getSupportedFormats){ try{ promises.push(window.BarcodeDetector.getSupportedFormats().then(function(fmts){ lines.push('Formatos BD: '+fmts.join(', ')); })); }catch(_){} } if(navigator.mediaDevices && navigator.mediaDevices.enumerateDevices){ promises.push(navigator.mediaDevices.enumerateDevices().then(function(list){ var cams=[]; for(var i=0;i<list.length;i++){ if(list[i].kind==='videoinput') cams.push(list[i]); } lines.push('Cámaras: '+cams.length); for(var j=0;j<cams.length;j++){ var c=cams[j]; lines.push('  ['+j+'] '+(c.label||('Cam '+String(c.deviceId||'').slice(-4)))); } })); } if(activeTrack && activeTrack.getCapabilities){ try{ var caps=activeTrack.getCapabilities(); lines.push('Torch soportado: '+ (!!caps.torch)); if(caps.focusMode) lines.push('Enfoque: '+JSON.stringify(caps.focusMode)); }catch(_){ } } else { lines.push('Torch soportado: (iniciar cámara para verificar)'); } Promise.all(promises).then(function(){ $('diagContent').textContent=lines.join('\n'); }); }catch(e){ lines.push('Error diag: '+(e.message||e)); $('diagContent').textContent=lines.join('\n'); } }
+  function runDiagnostics(){ var lines=[]; try{ lines.push('Origen: '+location.origin); lines.push('Contexto seguro: '+window.isSecureContext); var dm=(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)||window.navigator.standalone; lines.push('PWA (standalone): '+ (!!dm)); lines.push('BarcodeDetector: '+ ('BarcodeDetector' in window)); var promises=[]; if('BarcodeDetector' in window && window.BarcodeDetector.getSupportedFormats){ try{ promises.push(window.BarcodeDetector.getSupportedFormats().then(function(fmts){ lines.push('Formatos BD: '+fmts.join(', ')); })); }catch(_){} } if(navigator.mediaDevices && navigator.mediaDevices.enumerateDevices){ promises.push(navigator.mediaDevices.enumerateDevices().then(function(list){ var cams=[]; var i; for(i=0;i<list.length;i++){ if(list[i].kind==='videoinput') cams.push(list[i]); } lines.push('Cámaras: '+cams.length); var j; for(j=0;j<cams.length;j++){ var c=cams[j]; lines.push('  ['+j+'] '+(c.label||('Cam '+String(c.deviceId||'').slice(-4)))); } })); } if(activeTrack && activeTrack.getCapabilities){ try{ var caps=activeTrack.getCapabilities(); lines.push('Torch soportado: '+ (!!caps.torch)); if(caps.focusMode) lines.push('Enfoque: '+JSON.stringify(caps.focusMode)); }catch(_){ } } else { lines.push('Torch soportado: (iniciar cámara para verificar)'); } Promise.all(promises).then(function(){ $('diagContent').textContent=lines.join('\n'); }); }catch(e){ lines.push('Error diag: '+(e.message||e)); $('diagContent').textContent=lines.join('\n'); } }
 })();
 </script>
 </body>
