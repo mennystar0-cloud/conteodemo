@@ -289,6 +289,28 @@ function getOperadorValue(){
   return v;
 }
 </script>
+  <script>
+function syncOperador(e){
+  var v = (e.target.value || '').replace(/[\u00A0\u200B\u200C\u200D]/g,' ').trim();
+  localStorage.setItem('cc-operador', v);
+  var o = document.getElementById('operador');
+  var s = document.getElementById('scanOperador');
+  if (o && o !== e.target && o.value !== v) o.value = v;
+  if (s && s !== e.target && s.value !== v) s.value = v;
+}
+if (document.getElementById('operador'))     document.getElementById('operador').addEventListener('input', syncOperador);
+if (document.getElementById('scanOperador')) document.getElementById('scanOperador').addEventListener('input', syncOperador);
+
+// Prefill desde cc-operador si existe
+(function(){
+  var v = localStorage.getItem('cc-operador');
+  if (v) {
+    if (document.getElementById('operador'))     document.getElementById('operador').value = v;
+    if (document.getElementById('scanOperador')) document.getElementById('scanOperador').value = v;
+  }
+})();
+</script>
+
 
   // ===== Tabs =====
   function showTab(name){ var names=['importar','existencias','folio','escanear','reporte','consulta','historial']; for(var i=0;i<names.length;i++){ var t=names[i]; var el=$("tab-"+t); if(!el) continue; el.classList.toggle('hidden', t!==name); el.classList.toggle('block', t===name); } }
