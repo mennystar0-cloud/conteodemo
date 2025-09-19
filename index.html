@@ -1,4 +1,4 @@
-<!-- path: /index.html (LEGACY ES5 COMPAT, sin Map, almacén por defecto) -->
+<!-- path: /index.html (LEGACY ES5 COMPAT) -->
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -274,25 +274,32 @@
   // ===== Helpers =====
   function $(id){ return document.getElementById(id); }
   function on(id, ev, fn){ var n=$(id); if(n) n.addEventListener(ev, fn); }
+  function markInvalid(el,msg){ if(!el) return; el.classList.add('ring-2','ring-red-500','border-red-500'); if(msg) el.setAttribute('title',msg); try{ el.focus(); }catch(e){} }
+  function clearInvalid(el){ if(!el) return; el.classList.remove('ring-2','ring-red-500','border-red-500'); el.removeAttribute('title'); }
   function esc(s){ return String(s).replace(/[&<>]/g,function(m){ return {"&":"&amp;","<":"&lt;",">":"&gt;"}[m];}); }
   function fmt(d){ function p(n){return String(n).padStart(2,'0');} return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+" "+p(d.getHours())+":"+p(d.getMinutes()); }
-  function canon(s){ s=(s||'').toString(); if(s.normalize){ s=s.normalize('NFD').replace(/[\u0300-\u036f]/g,''); } return s.trim().toUpperCase(); }
+  function canon(s){ s=(s||'').toString(); if(s.normalize){ s=s.normalize('NFD').replace(/[̀-ͯ]/g,''); } return s.trim().toUpperCase(); }
   function keyOf(mod,color,talla){ return (mod||'').trim()+"|"+(color||'').trim()+"|"+(talla||'').trim(); }
   function splitKey(k){ var a=String(k||'').split('|'); return {mod:a[0]||'', color:a[1]||'', talla:a[2]||''}; }
 
-  // ===== Tabs / state =====
+  // ===== Tabs =====
   function showTab(name){ var names=['importar','existencias','folio','escanear','reporte','consulta','historial']; for(var i=0;i<names.length;i++){ var t=names[i]; var el=$("tab-"+t); if(!el) continue; el.classList.toggle('hidden', t!==name); el.classList.toggle('block', t===name); } }
   window.addEventListener('DOMContentLoaded', function(){
     var tabs=document.querySelectorAll('#tabs [data-tab]');
     for(var i=0;i<tabs.length;i++)(function(btn){ btn.addEventListener('click', function(){ for(var j=0;j<tabs.length;j++){ tabs[j].classList.remove('border-blue-600'); tabs[j].classList.remove('text-blue-600'); } btn.classList.add('border-blue-600'); btn.classList.add('text-blue-600'); showTab(btn.getAttribute('data-tab')); }); })(tabs[i]);
     var isStandalone=(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)||window.navigator.standalone; if(isStandalone||window.innerWidth<768){ showTab('escanear'); }else{ showTab('importar'); }
     var ids=['operador','almacen','temporada','scanArea','scanPos','scanOperador'];
-    for(var k=0;k<ids.length;k++){ var el=$(ids[k]); if(!el) continue; var v=localStorage.getItem('cc-'+ids[k]); if(v!==null) el.value=v; el.addEventListener('input',function(e){ localStorage.setItem('cc-'+e.target.id, e.target.value); }); el.addEventListener('change',function(e){ localStorage.setItem('cc-'+e.target.id, e.target.value); }); }
+    for(var k=0;k<ids.length;k++){ var el=$(ids[k]); if(!el) continue; var v=localStorage.getItem('cc-'+ids[k]); if(v!==null) el.value=v; el.addEventListener('input',function(e){ clearInvalid(e.target); localStorage.setItem('cc-'+e.target.id, e.target.value); }); el.addEventListener('change',function(e){ clearInvalid(e.target); localStorage.setItem('cc-'+e.target.id, e.target.value); }); }
     var xlPref=localStorage.getItem('cc-mode-xl'); var autoXL=(isStandalone||window.innerWidth<768); var xlOn=(xlPref!==null)?(xlPref==='1'):autoXL; document.documentElement.classList.toggle('mode-xl', !!xlOn); if($('toggleXL')) $('toggleXL').checked=!!xlOn; localStorage.setItem('cc-mode-xl', xlOn?'1':'0');
     var savePref=localStorage.getItem('cc-battery-save'); var saveOn=(savePref!==null)?(savePref==='1'):(window.innerWidth<768); setBatterySave(!!saveOn); if($('toggleSave')) $('toggleSave').checked=!!saveOn;
     var mutePref=localStorage.getItem('cc-mute'); var muteOn=(mutePref!==null)?(mutePref==='1'):document.documentElement.classList.contains('mode-xl'); MUTE=!!muteOn; if($('toggleMute')) $('toggleMute').checked=!!muteOn;
     var cdPref=localStorage.getItem('cc-cooldown'); COOLDOWN_MS=isNaN(parseInt(cdPref||'',10))?800:parseInt(cdPref,10); if($('cooldownMs')) $('cooldownMs').value=COOLDOWN_MS;
     var folioParam=(new URL(location.href)).searchParams.get('folio'); if(folioParam) $('joinFolioId').value=folioParam;
+    // Prefill: si operador vacío, usa último guardado
+    if($('operador') && !$('operador').value.trim()){
+      var lastOp = localStorage.getItem('cc-operador') || localStorage.getItem('cc-scanOperador') || '';
+      if(lastOp) $('operador').value = lastOp;
+    }
     cargarCatalogo(false);
   });
 
@@ -302,9 +309,15 @@
 
   // ===== Catálogo =====
   var CATALOGO={ byBarcode:{}, byVariant:{} };
+  function mapSet(m,k,v){ m[k]=v; }
+  function mapGet(m,k){ return m[k]; }
+  function mapHas(m,k){ return Object.prototype.hasOwnProperty.call(m,k); }
+  function mapClear(m){ for(var x in m) if(Object.prototype.hasOwnProperty.call(m,x)) delete m[x]; }
+  function mapForEach(m,fn){ for(var x in m) if(Object.prototype.hasOwnProperty.call(m,x)) fn(m[x],x); }
+
   function buildCatalog(rows){ var res={ byBarcode:{}, byVariant:{} }; var H=(rows[0]||[]); for(var h=0;h<H.length;h++) H[h]=canon(H[h]); function idx(names){ for(var j=0;j<names.length;j++){ var ii=H.indexOf(canon(names[j])); if(ii>=0) return ii; } return -1; }
     var iCode=idx(['CODIGO_BARRA','CODIGO','EAN','UPC']); var iMod=idx(['MOD','MODELO','SKU']); var iColor=idx(['COLOR']); var iTalla=idx(['TALLA']);
-    for(var r=1;r<rows.length;r++){ var row=rows[r]||[]; var code=String(row[iCode]||'').trim(); var mod=String(row[iMod]||'').trim(); var color=String(row[iColor]||'').trim(); var talla=String(row[iTalla]||'').trim(); if(!code||!mod) continue; var vkey=keyOf(mod,color,talla); var item={mod:mod,color:color,talla:talla,vkey:vkey}; res.byBarcode[code]=item; if(!res.byVariant[vkey]) res.byVariant[vkey]=item; }
+    for(var r=1;r<rows.length;r++){ var row=rows[r]||[]; var code=String(row[iCode]||'').trim(); var mod=String(row[iMod]||'').trim(); var color=String(row[iColor]||'').trim(); var talla=String(row[iTalla]||'').trim(); if(!code||!mod) continue; var vkey=keyOf(mod,color,talla); var item={mod:mod,color:color,talla:talla,vkey:vkey}; mapSet(res.byBarcode, code, item); if(!mapHas(res.byVariant, vkey)) mapSet(res.byVariant, vkey, item); }
     return res; }
   function cargarCatalogo(force){ $('importStatus').textContent='Descargando...'; var url='static/catalogo-master.xlsx'+(force?('?v='+Date.now()):''); fetch(url,{cache:'no-store'}).then(function(resp){ if(!resp.ok) throw new Error('HTTP '+resp.status); return resp.arrayBuffer(); }).then(function(ab){ return ensureXLSX().then(function(){return ab;}); }).then(function(ab){ var wb=XLSX.read(ab,{type:'array'}); var sh=wb.Sheets[wb.SheetNames[0]]; var rows=XLSX.utils.sheet_to_json(sh,{header:1,defval:''}); CATALOGO=buildCatalog(rows); $('importStatus').textContent='Catálogo OK: '+(rows.length-1)+' filas (hoja: '+wb.SheetNames[0]+') · Origen: local'; }).catch(function(e){ console.error(e); $('importStatus').textContent='Error: '+(e.message||e); }); }
   on('btnRecargarCloud','click', function(){ cargarCatalogo(false); });
@@ -312,11 +325,35 @@
   on('btnPlantillaCSV','click', function(){ var csv='MODELO,COLOR,TALLA,CANTIDAD\n587-12,NEGRO,250,3\n'; var blob=new Blob([csv],{type:'text/csv'}); var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='plantilla_existencias.csv'; a.click(); URL.revokeObjectURL(a.href); });
 
   // ===== Folio =====
-  var FOLIO_ID=null, FOLIO_DOC=null; var COUNTS={}, AGG_BY_AREA={};
+  var FOLIO_ID=null, FOLIO_DOC=null; var COUNTS={}; var AGG_BY_AREA={};
   function nextFolioNumber(){ var ref=db.collection('meta').doc('counters'); return db.runTransaction(function(tx){ return tx.get(ref).then(function(snap){ var cur=snap.exists?(snap.data().nextFolio||1):1; tx.set(ref,{nextFolio:cur+1},{merge:true}); return cur; }); }); }
-  function req(input,msg){ var val; if(typeof input==='string'){val=input;} else if(input && typeof input==='object' && 'value' in input){ val=input.value; } else { val=input; } var s=String(val||'').trim(); if(!s){ alert(msg); throw new Error(msg); } return s; }
+  function req(input,msg){
+    var el = (input && input.nodeType===1)? input : (input && input.value!==undefined ? input : null);
+    var val = el? el.value : (typeof input==='string'? input : (input && typeof input==='object' && 'value' in input ? input.value : input));
+    var s = String(val||'').trim();
+    if(!s){ if(el) markInvalid(el,msg); alert(msg); throw new Error(msg); }
+    if(el) clearInvalid(el);
+    return s; } else if(input && typeof input==='object' && 'value' in input){ val=input.value; } else { val=input; } var s=String(val||'').trim(); if(!s){ alert(msg); throw new Error(msg); } return s; }
   function activarFolio(id){ return db.collection('folios').doc(id).get().then(function(snap){ if(!snap.exists){ alert('Folio no encontrado'); return; } FOLIO_ID=id; FOLIO_DOC=snap.data(); $('envInfo').textContent='Folio '+id; $('joinFolioId').value=id; var dt=(FOLIO_DOC && FOLIO_DOC.createdAt && typeof FOLIO_DOC.createdAt.toDate==='function')? FOLIO_DOC.createdAt.toDate():new Date(); $('folioFecha').textContent=fmt(dt); $('folioStatus').innerHTML='Folio: <b>'+id+'</b> — '+esc(FOLIO_DOC.name||'')+' · Operador: '+esc(FOLIO_DOC.createdBy||'')+' · Almacén: '+esc(FOLIO_DOC.almacen||'')+' · Temporada: '+esc(FOLIO_DOC.temporada||''); document.title='Folio '+id+' · Conteo Cíclico'; subscribeCounts(); subscribeScans(); }); }
-  function crearFolio(){ try{ var name=($('#folioName')&&$('#folioName').value||'Cíclico'); name=(name||'').trim()||'Cíclico'; var operador=req($('#operador'),'Indica quién realiza el cíclico'); var almacen=(($('#almacen')&&$('#almacen').value)||'').trim()||'Sucursal'; var temporada=($('#temporada')&&$('#temporada').value)||'TODAS'; return nextFolioNumber().then(function(number){ var id=String(number).padStart(6,'0'); var ref=db.collection('folios').doc(id); return ref.set({ id:id, number:number, name:name, createdBy:operador, almacen:almacen, temporada:temporada, state:'open', existenciasMap:{}, createdAt: firebase.firestore.FieldValue.serverTimestamp() }).then(function(){ return activarFolio(id); }); }).catch(function(e){ console.warn(e && e.message ? e.message : e); }); }catch(e){ console.warn(e && e.message ? e.message : e); return Promise.resolve(); } }
+  function crearFolio(){
+    try{
+      var name=($('#folioName')&&$('#folioName').value||'Cíclico'); name=(name||'').trim()||'Cíclico';
+      var opEl = $('#operador');
+      if(opEl && !opEl.value.trim()){
+        var last = localStorage.getItem('cc-operador') || localStorage.getItem('cc-scanOperador') || '';
+        if(last) opEl.value = last;
+      }
+      var operador=req(opEl,'Indica quién realiza el cíclico');
+      // Persistimos el operador usado
+      localStorage.setItem('cc-operador', operador);
+      var almacen=(($('#almacen')&&$('#almacen').value)||'').trim()||'Sucursal';
+      var temporada=($('#temporada')&&$('#temporada').value)||'TODAS';
+      return nextFolioNumber().then(function(number){
+        var id=String(number).padStart(6,'0'); var ref=db.collection('folios').doc(id);
+        return ref.set({ id:id, number:number, name:name, createdBy:operador, almacen:almacen, temporada:temporada, state:'open', existenciasMap:{}, createdAt: firebase.firestore.FieldValue.serverTimestamp() }).then(function(){ return activarFolio(id); });
+      }).catch(function(e){ console.warn(e && e.message ? e.message : e); });
+    }catch(e){ console.warn(e && e.message ? e.message : e); return Promise.resolve(); }
+  }, createdAt: firebase.firestore.FieldValue.serverTimestamp() }).then(function(){ return activarFolio(id); }); }).catch(function(e){ console.warn(e && e.message ? e.message : e); }); }catch(e){ console.warn(e && e.message ? e.message : e); return Promise.resolve(); } }
   function unirseFolio(){ var id=($('#joinFolioId')&&$('#joinFolioId').value||'').trim(); if(!id) return; return activarFolio(id); }
   on('btnCrearFolio','click', crearFolio);
   on('btnUnirseFolio','click', unirseFolio);
@@ -341,7 +378,7 @@
           "<table class='w-full text-sm'><thead><tr><th>Modelo</th><th>Color</th><th>Talla</th><th class='text-right'>Cant</th></tr></thead><tbody>"+rows+"</tbody></table>"+
         "</div>"+
         "<div>"+
-          (res.bad.length?"<h3 class='font-semibold mb-1'>Líneas inválidas</h3><ul class='list-disc pl-5 text-red-600 text-sm'>"+bads+"</ul>":"<div class='text-sm text-emerald-700'>Sin errores</div>")+""+
+          (res.bad.length?"<h3 class='font-semibold mb-1'>Líneas inválidas</h3><ul class='list-disc pl-5 text-red-600 text-sm'>"+bads+"</ul>":"<div class='text-sm text-emerald-700'>Sin errores</div>")+
         "</div>"+
       "</div>"+
     "</div>"; }
@@ -380,31 +417,34 @@
 
   // ===== Registro scan =====
   function registrarScan(item, code, meta){ if(!FOLIO_ID) return Promise.reject(new Error('No folio')); var refFol=db.collection('folios').doc(FOLIO_ID); var vkey=item.vkey||keyOf(item.mod,item.color,item.talla); var scanDoc={ ts: firebase.firestore.FieldValue.serverTimestamp(), code:String(code), vkey:vkey, mod:item.mod, color:item.color||'', talla:item.talla||'', area:meta.area||'', pos:meta.pos||'', user:meta.user||meta.operador||'', temporada:meta.temporada||'' }; return refFol.collection('scans').add(scanDoc).then(function(){ return refFol.collection('counts').doc(vkey).set({qty: firebase.firestore.FieldValue.increment(1)},{merge:true}); }); }
-  function handleBarcode(code){ if(!FOLIO_ID){ beep(220,120); haptic([60]); return alert('Sin folio'); } if(Object.keys(CATALOGO.byBarcode).length===0){ beep(220,120); haptic([60]); return alert('Catálogo no cargado'); } var n=normalizeBarcode(code); var key=n.ean13||code; var item= CATALOGO.byBarcode[key] || CATALOGO.byBarcode[String(code)];
+  function handleBarcode(code){ if(!FOLIO_ID){ beep(220,120); haptic([60]); return alert('Sin folio'); } if((CATALOGO.byBarcode instanceof Map && CATALOGO.byBarcode.size===0) || (!(CATALOGO.byBarcode instanceof Map) && Object.keys(CATALOGO.byBarcode).length===0)){ beep(220,120); haptic([60]); return alert('Catálogo no cargado'); } var n=normalizeBarcode(code); var key=n.ean13||code; var item=(CATALOGO.byBarcode instanceof Map)? CATALOGO.byBarcode.get(key) || CATALOGO.byBarcode.get(String(code)) : (CATALOGO.byBarcode[key] || CATALOGO.byBarcode[String(code)]);
     if(!item){ $('lastItem').textContent='No encontrado: '+code; beep(220,140); haptic([40,60,40]); return; }
     var area=(($('scanArea')&&$('scanArea').value)||'').trim(); var pos=(($('scanPos')&&$('scanPos').value)||'').trim(); var user=(($('scanOperador')&&$('scanOperador').value)||($('operador')&&$('operador').value)||(FOLIO_DOC&&FOLIO_DOC.createdBy)||'').trim(); var temporada=(FOLIO_DOC && FOLIO_DOC.temporada)?FOLIO_DOC.temporada:'TODAS'; var vkey=item.vkey||keyOf(item.mod,item.color,item.talla); var now=Date.now(); var last=(LAST_SEEN[vkey]||0); if(now-last<COOLDOWN_MS){ $('lastItem').innerHTML = "<span class='text-xs text-gray-500'>Ignorado por cooldown ("+(now-last)+"ms &lt; "+COOLDOWN_MS+"ms): "+esc(vkey)+"</span>"; return; } LAST_SEEN[vkey]=now;
-    registrarScan(item, code, {area:area,pos:pos,user:user,temporada:temporada}).then(function(){ var ex=(FOLIO_DOC && FOLIO_DOC.existenciasMap)||{}; var theo=Number(ex[vkey]||0); var prev=(COUNTS[vkey]||0); var nextScan=prev+1; var diff=nextScan-theo; COUNTS[vkey]=nextScan; $('lastItem').innerHTML = "<div class='flex flex-wrap items-center gap-2'>"+
+    registrarScan(item, code, {area:area,pos:pos,user:user,temporada:temporada}).then(function(){ var ex=(FOLIO_DOC && FOLIO_DOC.existenciasMap)||{}; var theo=Number(ex[vkey]||0); var prev=(COUNTS instanceof Map)? (COUNTS.get(vkey)||0):(COUNTS[vkey]||0); var nextScan=prev+1; var diff=nextScan-theo; if(COUNTS instanceof Map){ COUNTS.set(vkey,nextScan);} else { COUNTS[vkey]=nextScan; } $('lastItem').innerHTML = "<div class='flex flex-wrap items-center gap-2'>"+
       "<span class='font-semibold'>OK "+esc(item.mod)+" "+esc(item.color||'')+" "+esc(item.talla||'')+"</span>"+
       "<span class='text-xs'>("+esc(vkey)+") — "+esc(area)+(pos?(' · '+esc(pos)):'')+"</span>"+
       "<span class='ml-2 badge "+(diff===0?'bg-gray-100':(diff>0?'bg-green-100 text-emerald-700':'bg-red-100 text-red-700'))+"'>Teo: "+theo+" · Scan: "+nextScan+" · Dif: "+diff+"</span>"+
       "</div>"; beep(1000,70); haptic(25); }); }
 
   // ===== Realtime & Reporte =====
-  function subscribeCounts(){ if(!FOLIO_ID) return; for(var x in COUNTS) if(Object.prototype.hasOwnProperty.call(COUNTS,x)) delete COUNTS[x]; db.collection('folios').doc(FOLIO_ID).collection('counts').onSnapshot(function(snap){ snap.forEach(function(d){ var qty=d.data().qty||0; COUNTS[d.id]=qty; }); }); }
+  function subscribeCounts(){ if(!FOLIO_ID) return; if(COUNTS instanceof Map){ COUNTS.clear(); } else { for(var x in COUNTS) if(Object.prototype.hasOwnProperty.call(COUNTS,x)) delete COUNTS[x]; }
+    db.collection('folios').doc(FOLIO_ID).collection('counts').onSnapshot(function(snap){ snap.forEach(function(d){ var qty=d.data().qty||0; var id=d.id; if(COUNTS instanceof Map){ COUNTS.set(id, qty);} else { COUNTS[id]=qty; } }); }); }
   function subscribeScans(){ if(!FOLIO_ID) return; db.collection('folios').doc(FOLIO_ID).collection('scans').orderBy('ts','desc').limit(500).onSnapshot(function(snap){ var rows=[]; snap.forEach(function(d){ var x=d.data(); var dt=(x.ts && typeof x.ts.toDate==='function')? x.ts.toDate():new Date(); rows.push('<tr><td>'+fmt(dt)+'</td><td>'+esc(x.area||'')+'</td><td>'+esc(x.pos||'')+'</td><td>'+esc(x.code)+'</td><td>'+esc(x.mod||'')+'</td><td>'+esc(x.color||'')+'</td><td>'+esc(x.talla||'')+'</td><td>'+esc(x.user||x.operador||'')+'</td></tr>'); }); $('historyBody').innerHTML=rows.join(''); }); }
-  function buildReportRows(byArea){ var ex=(FOLIO_DOC && FOLIO_DOC.existenciasMap)||{}; var rows=[]; var modF=(($('filtroModelo')&&$('filtroModelo').value)||'').trim().toUpperCase(); var colF=(($('filtroColor')&&$('filtroColor').value)||'').trim().toUpperCase(); var talF=(($('filtroTalla')&&$('filtroTalla').value)||'').trim().toUpperCase();
-    if(byArea){ var areasKeys=[]; for(var a in AGG_BY_AREA) if(Object.prototype.hasOwnProperty.call(AGG_BY_AREA,a)) areasKeys.push(a);
-      for(var ai=0; ai<areasKeys.length; ai++){ var area=areasKeys[ai]; var mods=AGG_BY_AREA[area]||{}; var keys=[]; for(var kk in mods) if(Object.prototype.hasOwnProperty.call(mods,kk)) keys.push(kk);
-        for(var ki=0; ki<keys.length; ki++){ var vkey=keys[ki]; var tmp=splitKey(vkey); if(modF && tmp.mod.toUpperCase().indexOf(modF)<0) continue; if(colF && (tmp.color||'').toUpperCase().indexOf(colF)<0) continue; if(talF && (tmp.talla||'').toUpperCase().indexOf(talF)<0) continue; var theo=Number(ex[vkey]||0); var scan=(mods[vkey]||0); rows.push({ area:area, mod:tmp.mod, color:tmp.color, talla:tmp.talla, theo:theo, scan:scan, diff:scan-theo }); }
+  function buildReportRows(byArea){ var ex=(FOLIO_DOC && FOLIO_DOC.existenciasMap)||{}; var rows=[]; var modF=(($('filtroModelo')&&$('filtroModelo').value)||'').trim().toUpperCase(); var colF=(($('filtroColor')&&$('filtroColor').value)||'').trim().toUpperCase(); var talF=(($('filtroTalla')&&$('filtroTalla').value)||'').trim().toUpperCase(); if(byArea){
+      var areasKeys=[]; if(AGG_BY_AREA instanceof Map){ AGG_BY_AREA.forEach(function(_,k){ areasKeys.push(k); }); } else { for(var a in AGG_BY_AREA) if(Object.prototype.hasOwnProperty.call(AGG_BY_AREA,a)) areasKeys.push(a); }
+      for(var ai=0; ai<areasKeys.length; ai++){ var area=areasKeys[ai]; var mods=(AGG_BY_AREA instanceof Map)? AGG_BY_AREA.get(area) : AGG_BY_AREA[area]; var keys=[]; if(mods instanceof Map){ mods.forEach(function(_,k){ keys.push(k); }); } else { for(var kk in mods) if(Object.prototype.hasOwnProperty.call(mods,kk)) keys.push(kk); }
+        for(var ki=0; ki<keys.length; ki++){ var vkey=keys[ki]; var tmp=splitKey(vkey); if(modF && tmp.mod.toUpperCase().indexOf(modF)<0) continue; if(colF && (tmp.color||'').toUpperCase().indexOf(colF)<0) continue; if(talF && (tmp.talla||'').toUpperCase().indexOf(talF)<0) continue; var theo=Number(ex[vkey]||0); var scan = (mods instanceof Map)? (mods.get(vkey)||0):(mods[vkey]||0); rows.push({ area:area, mod:tmp.mod, color:tmp.color, talla:tmp.talla, theo:theo, scan:scan, diff:scan-theo }); }
       }
       rows.sort(function(a,b){ return (a.area||'').localeCompare(b.area||'') || a.mod.localeCompare(b.mod) || (a.color||'').localeCompare(b.color||'') || (a.talla||'').localeCompare(b.talla||''); });
-      return rows; }
-    var setKeys={}; for(var k in ex){ if(Object.prototype.hasOwnProperty.call(ex,k)) setKeys[k]=true; } for(var ck in COUNTS) if(Object.prototype.hasOwnProperty.call(COUNTS,ck)) setKeys[ck]=true;
+      return rows;
+    }
+    var setKeys={}; for(var k in ex){ if(Object.prototype.hasOwnProperty.call(ex,k)) setKeys[k]=true; }
+    if(COUNTS instanceof Map){ COUNTS.forEach(function(_,k){ setKeys[k]=true; }); } else { for(var ck in COUNTS) if(Object.prototype.hasOwnProperty.call(COUNTS,ck)) setKeys[ck]=true; }
     var keysAll=[]; for(var sk in setKeys) if(Object.prototype.hasOwnProperty.call(setKeys,sk)) keysAll.push(sk);
-    for(var i=0;i<keysAll.length;i++){ var v=keysAll[i]; var o=splitKey(v); if(modF && o.mod.toUpperCase().indexOf(modF)<0) continue; if(colF && (o.color||'').toUpperCase().indexOf(colF)<0) continue; if(talF && (o.talla||'').toUpperCase().indexOf(talF)<0) continue; var theo2=Number(ex[v]||0); var scan2=(COUNTS[v]||0); rows.push({ area:'', mod:o.mod, color:o.color, talla:o.talla, theo:theo2, scan:scan2, diff:scan2-theo2 }); }
+    for(var i=0;i<keysAll.length;i++){ var v=keysAll[i]; var o=splitKey(v); if(modF && o.mod.toUpperCase().indexOf(modF)<0) continue; if(colF && (o.color||'').toUpperCase().indexOf(colF)<0) continue; if(talF && (o.talla||'').toUpperCase().indexOf(talF)<0) continue; var theo2=Number(ex[v]||0); var scan2=(COUNTS instanceof Map)? (COUNTS.get(v)||0):(COUNTS[v]||0); rows.push({ area:'', mod:o.mod, color:o.color, talla:o.talla, theo:theo2, scan:scan2, diff:scan2-theo2 }); }
     rows.sort(function(a,b){ return a.mod.localeCompare(b.mod) || (a.color||'').localeCompare(b.color||'') || (a.talla||'').localeCompare(b.talla||''); });
     return rows; }
-  function loadAggregatesByArea(){ if(!FOLIO_ID){ AGG_BY_AREA={}; return Promise.resolve(); } AGG_BY_AREA={}; var folio=db.collection('folios').doc(FOLIO_ID).collection('scans'); var page=1000; function pageFn(query){ return query.get().then(function(snap){ if(snap.empty) return; snap.forEach(function(doc){ var x=doc.data(); var area=(x.area||'').trim(); var vkey=x.vkey||keyOf(x.mod,x.color,x.talla); var mods=(AGG_BY_AREA[area]||{}); var curr=(mods[vkey]||0); curr++; mods[vkey]=curr; AGG_BY_AREA[area]=mods; }); if(snap.size<page) return; var last=snap.docs[snap.size-1]; return pageFn(folio.orderBy('ts').startAfter(last).limit(page)); }); } return pageFn(folio.orderBy('ts').limit(page)); }
+  function loadAggregatesByArea(){ if(!FOLIO_ID){ AGG_BY_AREA={}; return Promise.resolve(); } AGG_BY_AREA={}; var folio=db.collection('folios').doc(FOLIO_ID).collection('scans'); var page=1000; function pageFn(query){ return query.get().then(function(snap){ if(snap.empty) return; snap.forEach(function(doc){ var x=doc.data(); var area=(x.area||'').trim(); var vkey=x.vkey||keyOf(x.mod,x.color,x.talla); var mods=(AGG_BY_AREA instanceof Map)? (AGG_BY_AREA.get(area)||new Map()):(AGG_BY_AREA[area]||{}); var curr=(mods instanceof Map)? (mods.get(vkey)||0):(mods[vkey]||0); curr++; if(mods instanceof Map){ mods.set(vkey,curr);} else { mods[vkey]=curr; } if(AGG_BY_AREA instanceof Map){ AGG_BY_AREA.set(area,mods);} else { AGG_BY_AREA[area]=mods; } }); if(snap.size<page) return; var last=snap.docs[snap.size-1]; return pageFn(folio.orderBy('ts').startAfter(last).limit(page)); }); } return pageFn(folio.orderBy('ts').limit(page)); }
   function renderReport(){ var byArea=(($('groupMode')&&$('groupMode').value)==='area'); var rows=buildReportRows(byArea); var html=''; for(var i=0;i<rows.length;i++){ var r=rows[i]; html += '<tr><td>'+esc(r.area||'')+'</td><td>'+esc(r.mod)+'</td><td>'+esc(r.color||'')+'</td><td>'+esc(r.talla||'')+'</td><td class="text-right">'+r.theo+'</td><td class="text-right">'+r.scan+'</td><td class="text-right '+(r.diff===0?'':(r.diff>0?'text-emerald-600':'text-red-600'))+'">'+r.diff+'</td></tr>'; } $('reportBody').innerHTML=html; }
   on('btnRefrescarReporte','click', function(){ loadAggregatesByArea().then(renderReport); });
   on('btnExportarCSV','click', function(){ var rows=buildReportRows((($('groupMode')&&$('groupMode').value)==='area')); var csv=['Area,Modelo,Color,Talla,Teorico,Escaneado,Diferencia']; for(var i=0;i<rows.length;i++){ var r=rows[i]; csv.push([r.area||'',r.mod,r.color||'',r.talla||'',r.theo,r.scan,r.diff].join(',')); } var blob=new Blob([csv.join('\n')],{type:'text/csv;charset=utf-8;'}); var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='reporte_'+(FOLIO_ID||'sin_folio')+'.csv'; a.click(); URL.revokeObjectURL(a.href); });
