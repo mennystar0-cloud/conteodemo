@@ -349,19 +349,28 @@
   }
   function crearFolio(){
     try{
-      var name=($('#folioName')&&$('#folioName').value||'Cíclico'); name=(name||'').trim()||'Cíclico';
+      var name=($('#folioName')&&$('#folioName').value||'Cíclico');
+      name=(name||'').trim()||'Cíclico';
+
+      // Leer operador de input o del último guardado (sin usar req() para evitar null)
       var opEl = $('#operador');
-      if(opEl && !opEl.value.trim()){
+      var operador = (opEl && opEl.value)? opEl.value.trim() : '';
+      if(!operador){
         var last = localStorage.getItem('cc-operador') || localStorage.getItem('cc-scanOperador') || '';
-        if(last) opEl.value = last;
+        if(last){ operador = last; if(opEl) opEl.value = last; }
       }
-      var operador=req(opEl,'Indica quién realiza el cíclico');
+      if(!operador){ markInvalid(opEl,'Indica quién realiza el cíclico'); alert('Indica quién realiza el cíclico'); return; }
+      clearInvalid(opEl);
       localStorage.setItem('cc-operador', operador);
-      var almacen=(($('#almacen')&&$('#almacen').value)||'').trim()||'Sucursal';
-      var temporada=($('#temporada')&&$('#temporada').value)||'TODAS';
+
+      var almEl = $('#almacen');
+      var almacen = (almEl && almEl.value ? almEl.value.trim() : '') || 'Sucursal';
+      var temporada = ($('#temporada')&&$('#temporada').value)||'TODAS';
+
       return nextFolioNumber().then(function(number){
         var id=String(number).padStart(6,'0'); var ref=db.collection('folios').doc(id);
-        return ref.set({ id:id, number:number, name:name, createdBy:operador, almacen:almacen, temporada:temporada, state:'open', existenciasMap:{}, createdAt: firebase.firestore.FieldValue.serverTimestamp() }).then(function(){ return activarFolio(id); });
+        return ref.set({ id:id, number:number, name:name, createdBy:operador, almacen:almacen, temporada:temporada, state:'open', existenciasMap:{}, createdAt: firebase.firestore.FieldValue.serverTimestamp() })
+          .then(function(){ return activarFolio(id); });
       }).catch(function(e){ console.warn(e && e.message ? e.message : e); });
     }catch(e){ console.warn(e && e.message ? e.message : e); return Promise.resolve(); }
   }
