@@ -325,7 +325,7 @@
   on('btnPlantillaCSV','click', function(){ var csv='MODELO,COLOR,TALLA,CANTIDAD\n587-12,NEGRO,250,3\n'; var blob=new Blob([csv],{type:'text/csv'}); var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='plantilla_existencias.csv'; a.click(); URL.revokeObjectURL(a.href); });
 
   // ===== Folio =====
-  var FOLIO_ID=null, FOLIO_DOC=null; var COUNTS={}; var AGG_BY_AREA={};
+  var FOLIO_ID=null, FOLIO_DOC=null; var COUNTS={}, AGG_BY_AREA={};
   function nextFolioNumber(){ var ref=db.collection('meta').doc('counters'); return db.runTransaction(function(tx){ return tx.get(ref).then(function(snap){ var cur=snap.exists?(snap.data().nextFolio||1):1; tx.set(ref,{nextFolio:cur+1},{merge:true}); return cur; }); }); }
   function req(input,msg){
     var el = (input && input.nodeType===1)? input : (input && input.value!==undefined ? input : null);
@@ -333,8 +333,20 @@
     var s = String(val||'').trim();
     if(!s){ if(el) markInvalid(el,msg); alert(msg); throw new Error(msg); }
     if(el) clearInvalid(el);
-    return s; }
-  function activarFolio(id){ return db.collection('folios').doc(id).get().then(function(snap){ if(!snap.exists){ alert('Folio no encontrado'); return; } FOLIO_ID=id; FOLIO_DOC=snap.data(); $('envInfo').textContent='Folio '+id; $('joinFolioId').value=id; var dt=(FOLIO_DOC && FOLIO_DOC.createdAt && typeof FOLIO_DOC.createdAt.toDate==='function')? FOLIO_DOC.createdAt.toDate():new Date(); $('folioFecha').textContent=fmt(dt); $('folioStatus').innerHTML='Folio: <b>'+id+'</b> — '+esc(FOLIO_DOC.name||'')+' · Operador: '+esc(FOLIO_DOC.createdBy||'')+' · Almacén: '+esc(FOLIO_DOC.almacen||'')+' · Temporada: '+esc(FOLIO_DOC.temporada||''); document.title='Folio '+id+' · Conteo Cíclico'; subscribeCounts(); subscribeScans(); }); }
+    return s;
+  }
+  function activarFolio(id){
+    return db.collection('folios').doc(id).get().then(function(snap){
+      if(!snap.exists){ alert('Folio no encontrado'); return; }
+      FOLIO_ID=id; FOLIO_DOC=snap.data();
+      $('envInfo').textContent='Folio '+id; $('joinFolioId').value=id;
+      var dt=(FOLIO_DOC && FOLIO_DOC.createdAt && typeof FOLIO_DOC.createdAt.toDate==='function')? FOLIO_DOC.createdAt.toDate():new Date();
+      $('folioFecha').textContent=fmt(dt);
+      $('folioStatus').innerHTML='Folio: <b>'+id+'</b> — '+esc(FOLIO_DOC.name||'')+' · Operador: '+esc(FOLIO_DOC.createdBy||'')+' · Almacén: '+esc(FOLIO_DOC.almacen||'')+' · Temporada: '+esc(FOLIO_DOC.temporada||'');
+      document.title='Folio '+id+' · Conteo Cíclico';
+      subscribeCounts(); subscribeScans();
+    });
+  }
   function crearFolio(){
     try{
       var name=($('#folioName')&&$('#folioName').value||'Cíclico'); name=(name||'').trim()||'Cíclico';
@@ -344,7 +356,6 @@
         if(last) opEl.value = last;
       }
       var operador=req(opEl,'Indica quién realiza el cíclico');
-      // Persistimos el operador usado
       localStorage.setItem('cc-operador', operador);
       var almacen=(($('#almacen')&&$('#almacen').value)||'').trim()||'Sucursal';
       var temporada=($('#temporada')&&$('#temporada').value)||'TODAS';
@@ -353,7 +364,7 @@
         return ref.set({ id:id, number:number, name:name, createdBy:operador, almacen:almacen, temporada:temporada, state:'open', existenciasMap:{}, createdAt: firebase.firestore.FieldValue.serverTimestamp() }).then(function(){ return activarFolio(id); });
       }).catch(function(e){ console.warn(e && e.message ? e.message : e); });
     }catch(e){ console.warn(e && e.message ? e.message : e); return Promise.resolve(); }
-  }, createdAt: firebase.firestore.FieldValue.serverTimestamp() }).then(function(){ return activarFolio(id); }); }).catch(function(e){ console.warn(e && e.message ? e.message : e); }); }catch(e){ console.warn(e && e.message ? e.message : e); return Promise.resolve(); } }
+  }
   function unirseFolio(){ var id=($('#joinFolioId')&&$('#joinFolioId').value||'').trim(); if(!id) return; return activarFolio(id); }
   on('btnCrearFolio','click', crearFolio);
   on('btnUnirseFolio','click', unirseFolio);
