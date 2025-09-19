@@ -333,7 +333,7 @@
     var s = String(val||'').trim();
     if(!s){ if(el) markInvalid(el,msg); alert(msg); throw new Error(msg); }
     if(el) clearInvalid(el);
-    return s; } else if(input && typeof input==='object' && 'value' in input){ val=input.value; } else { val=input; } var s=String(val||'').trim(); if(!s){ alert(msg); throw new Error(msg); } return s; }
+    return s; }
   function activarFolio(id){ return db.collection('folios').doc(id).get().then(function(snap){ if(!snap.exists){ alert('Folio no encontrado'); return; } FOLIO_ID=id; FOLIO_DOC=snap.data(); $('envInfo').textContent='Folio '+id; $('joinFolioId').value=id; var dt=(FOLIO_DOC && FOLIO_DOC.createdAt && typeof FOLIO_DOC.createdAt.toDate==='function')? FOLIO_DOC.createdAt.toDate():new Date(); $('folioFecha').textContent=fmt(dt); $('folioStatus').innerHTML='Folio: <b>'+id+'</b> — '+esc(FOLIO_DOC.name||'')+' · Operador: '+esc(FOLIO_DOC.createdBy||'')+' · Almacén: '+esc(FOLIO_DOC.almacen||'')+' · Temporada: '+esc(FOLIO_DOC.temporada||''); document.title='Folio '+id+' · Conteo Cíclico'; subscribeCounts(); subscribeScans(); }); }
   function crearFolio(){
     try{
